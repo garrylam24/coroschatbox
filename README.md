@@ -86,7 +86,7 @@ python refresh_data.py
 
 ## 配置說明
 
-在專案根目錄建立 `.env` 檔案：
+在專案根目錄建立 `.env` 檔案（只需這一個，後端會自動讀取）：
 
 ```env
 # COROS 帳號（必填）
@@ -97,6 +97,8 @@ COROS_REGION=asia
 # LLM API（必填）
 DEEPSEEK_API_KEY=sk-your-key-here
 ```
+
+> `coros-chatbox/backend/.env` 不需要額外建立，根目錄 `.env` 已涵蓋所有配置。
 
 | 變數 | 必填 | 說明 | 預設值 |
 |------|------|------|--------|
