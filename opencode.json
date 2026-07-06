@@ -1,0 +1,43 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // 1. 設定你的 DeepSeek Provider 與 API Key
+  "provider": {
+    "deepseek": {
+      "options": {
+        "apiKey": "sk-e85ef7f214414406988316c2cd0d6b7c"
+        // 如果你需要走自訂代理（例如 SiliconFlow 或 OpenRouter），可以在此加上 "baseURL": "..."
+      }
+    }
+  },
+
+"agent": {
+    // 專家 1：日常數據查詢與基本同步 
+    // 遷移對照：deepseek-chat ➡️ deepseek-v4-flash (速度極快且便宜)
+    "coros_data": {
+      "description": "Use this agent ONLY for direct data fetching, simple metrics summaries (mileage, sleep, heart rate), basic workout syncing to the COROS calendar, and queries like 'get data', '我的數據', 'show data', 'fetch records'.",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-flash",
+      "permission": { "read": "allow", "edit": "ask", "bash": "allow" }
+    },
+
+    // 專家 2：深度體能診斷
+    // 遷移對照：deepseek-reasoner ➡️ deepseek-v4-pro 或是 v4-flash (啟用思考)
+    // 這裡強烈推薦直接升級到 v4-pro 來當你的 AI 教練，其 49B 的激活參數在推理複雜生理指標（如 HRV 與上坡心率漂移）時更具備 Claude 級別的實力！
+    "coros_coach": {
+      "description": "Use this agent ONLY for complex physiological analysis, training load optimization, HRV recovery correlation, and deep training diagnostics.",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-pro", 
+      // 提示：OpenCode 底層在呼叫 v4-pro 或 v4-flash 時，若偵測到它是複雜推理任務，會自動在後台加上 {"thinking": {"type": "enabled"}} 參數
+          "permission": { "read": "allow", "edit": "ask", "bash": "allow" }
+    }
+  },
+
+  "mcp": {
+    "coros": {
+      "type": "command",
+      "command": "D:\\opencode\\project3\\coros-mcp\\.venv\\Scripts\\python.exe",
+      "args": ["-m", "coros_mcp.server"],
+      "enabled": true
+    }
+  }
+}

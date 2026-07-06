@@ -1,0 +1,34 @@
+# --- Sensitive files (DO NOT COMMIT) ---
+.env
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+
+# --- Node.js ---
+node_modules/
+
+# --- Build / generated output ---
+dist/
+Dark45*
+project3-report.html
+mapping.html
+
+# --- Raw fetched data ---
+raw_activity.json
+raw_dashboard.json
+
+# --- Scratch / utility scripts ---
+_fetch_raw.py
+fetch_raw.py
+dark
+readme.txt
+
+# --- Logs ---
+opencode output in terminal.txt
+
+# --- OS artifacts ---
+Thumbs.db
+.DS_Store

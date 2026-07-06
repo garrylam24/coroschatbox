@@ -1,0 +1,14 @@
+req_mode='auto' msg='跑量上週多少' msg_lower='跑量上週多少' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=2 coach_score=0 resolved=data
+FINAL mode=data model=deepseek-chat
+req_mode='auto' msg='跑量上週多少' msg_lower='跑量上週多少' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=2 coach_score=0 resolved=data
+FINAL mode=data model=deepseek-chat
+req_mode='auto' msg='分析我的HRV趨勢' msg_lower='分析我的hrv趨勢' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=0 coach_score=2 resolved=coach
+FINAL mode=coach model=deepseek-reasoner
+req_mode='auto' msg='How was my volume' msg_lower='how was my volume' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=0 coach_score=0 resolved=coach
+FINAL mode=coach model=deepseek-reasoner
+req_mode='auto' msg='Diagnose my training' msg_lower='diagnose my training' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=0 coach_score=1 resolved=coach
+FINAL mode=coach model=deepseek-reasoner
+req_mode='auto' msg='Show my volume last week' msg_lower='show my volume last week' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=0 coach_score=0 resolved=coach
+FINAL mode=coach model=deepseek-reasoner
+req_mode='auto' msg='分析我的HRV趨勢' msg_lower='分析我的hrv趨勢' data_kw=['跑量', '里程', 'sleep', '心率', '配速', 'list', 'fetch', 'query', 'data', '查詢', '上週', '昨天', '今天'] coach_kw=['分析', '建議', 'diagnose', 'overtrain', 'trend', 'plan', 'advice', 'evaluate', 'correlation', 'pattern', '診斷', '趨勢', '計劃', '過度訓練', 'suggestion', 'improve'] data_score=0 coach_score=2 resolved=coach
+FINAL mode=coach model=deepseek-reasoner
