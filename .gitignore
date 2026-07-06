@@ -22,6 +22,7 @@ raw_dashboard.json
 
 # --- Scratch / utility scripts ---
 _fetch_raw.py
+_gen_readme.py
 fetch_raw.py
 dark
 readme.txt
