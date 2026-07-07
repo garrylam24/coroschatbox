@@ -4,7 +4,7 @@
   "provider": {
     "deepseek": {
       "options": {
-        "apiKey": "sk-xxx"
+        "apiKey": "{env:DEEPSEEK_API_KEY}"
         // 如果你需要走自訂代理（例如 SiliconFlow 或 OpenRouter），可以在此加上 "baseURL": "..."
       }
     }

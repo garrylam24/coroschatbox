@@ -13,6 +13,9 @@
         <button v-if="selectedMessages.length > 0" class="export-btn clear-btn" @click="selectedMessages = []">
           ✕ Clear
         </button>
+        <button v-if="messages.length > 0" class="export-btn new-btn" @click="newConversation">
+          🆕 New Conversation
+        </button>
       </div>
     </header>
 
@@ -227,7 +230,31 @@ export default {
       ]
     }
   },
+  mounted() {
+    const saved = localStorage.getItem('coros_messages')
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed)) this.messages = parsed
+      } catch (_) {}
+    }
+    const sid = localStorage.getItem('coros_session_id')
+    if (sid) this.sessionId = sid
+  },
+  watch: {
+    messages: {
+      handler(val) { localStorage.setItem('coros_messages', JSON.stringify(val)) },
+      deep: true
+    },
+    sessionId(val) { localStorage.setItem('coros_session_id', val) }
+  },
   methods: {
+    newConversation() {
+      this.messages = []
+      this.sessionId = Math.random().toString(36).substring(2, 14)
+      this.selectedMessages = []
+      localStorage.removeItem('coros_messages')
+    },
     async onFileSelect(e) {
       const file = e.target.files[0]
       if (!file) return
@@ -557,12 +584,40 @@ export default {
 
     renderMarkdown(text) {
       if (!text) return ''
+      const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       // Protect mermaid blocks from \n -> <br> conversion
       const mermaidBlocks = []
       let html = text.replace(/```mermaid\n?([\s\S]*?)```/g, (match, code) => {
         const idx = mermaidBlocks.length
         mermaidBlocks.push(code)
         return `~~~MERMAID${idx}~~~`
+      })
+      // Convert markdown tables to HTML tables (before escaping)
+      const tableBlocks = []
+      html = html.replace(/^\|.+\n\|[-:| ]+\|\n(?:\|.+\n?)+/gm, (match) => {
+        const idx = tableBlocks.length
+        const lines = match.trimEnd().split('\n')
+        const headerCells = lines[0].split('|').filter(c => c.trim()).map(c => esc(c.trim()))
+        const dataLines = lines.slice(2).filter(l => l.trim().length > 0)
+        let table = '<table class="chat-table">'
+        table += '<thead><tr>'
+        headerCells.forEach(h => { table += `<th>${h}</th>` })
+        table += '</tr></thead>'
+        if (dataLines.length > 0) {
+          table += '<tbody>'
+          dataLines.forEach(row => {
+            const cells = row.split('|').filter(c => c.trim()).map(c => esc(c.trim()))
+            if (cells.length) {
+              table += '<tr>'
+              cells.forEach(c => { table += `<td>${c}</td>` })
+              table += '</tr>'
+            }
+          })
+          table += '</tbody>'
+        }
+        table += '</table>'
+        tableBlocks.push(table)
+        return `~~~TABLE${idx}~~~`
       })
       html = html
         .replace(/&/g, '&amp;')
@@ -578,6 +633,10 @@ export default {
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/\n/g, '<br>')
         .replace(/<br><br>/g, '</p><p>')
+      // Restore table blocks
+      tableBlocks.forEach((table, i) => {
+        html = html.replace(`~~~TABLE${i}~~~`, table)
+      })
       // Restore mermaid blocks
       mermaidBlocks.forEach((code, i) => {
         html = html.replace(`~~~MERMAID${i}~~~`, `<div class="mermaid">${code}</div>`)
@@ -647,6 +706,7 @@ export default {
         }
       }
 
+      this._exportAccent = c.accent
       let msgHtml = ''
       const sorted = [...this.selectedMessages].sort((a, b) => a - b)
       sorted.forEach((idx) => {
@@ -657,7 +717,7 @@ export default {
         const bubbleColor = isUser ? c.userText : c.text
         const avatar = isUser ? '👤' : '🤖'
 
-        let content = (msg.content || '').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>')
+        let content = this.renderExportContent(msg.content || '')
         let fileHtml = ''
         if (msg.file) {
           if (msg.file.type === 'image') {
@@ -724,6 +784,50 @@ ${chartSections}
       }
 
       this.showExportDialog = false
+    },
+
+    renderExportContent(text) {
+      if (!text) return ''
+      const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      // Strip mermaid blocks (already captured as images)
+      let html = text.replace(/```mermaid\n?[\s\S]*?```/g, '')
+      // Convert tables
+      html = html.replace(/^\|.+\n\|[-:| ]+\|\n(?:\|.+\n?)+/gm, (match) => {
+        const lines = match.trimEnd().split('\n')
+        const headerCells = lines[0].split('|').filter(c => c.trim()).map(c => esc(c.trim()))
+        const dataLines = lines.slice(2).filter(l => l.trim().length > 0)
+        let table = '<table class="chat-table">'
+        table += '<thead><tr>'
+        headerCells.forEach(h => { table += `<th>${h}</th>` })
+        table += '</tr></thead>'
+        if (dataLines.length > 0) {
+          table += '<tbody>'
+          dataLines.forEach(row => {
+            const cells = row.split('|').filter(c => c.trim()).map(c => esc(c.trim()))
+            if (cells.length) {
+              table += '<tr>'
+              cells.forEach(c => { table += `<td>${c}</td>` })
+              table += '</tr>'
+            }
+          })
+          table += '</tbody>'
+        }
+        table += '</table>'
+        return table
+      })
+      html = esc(html)
+        .replace(/### (.+)/g, '<h3>$1</h3>')
+        .replace(/## (.+)/g, '<h2>$1</h2>')
+        .replace(/# (.+)/g, '<h1>$1</h1>')
+        .replace(/\*\*(.+?)\*\*/g, '<strong style="color:' + this._exportAccent + '">$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/`([^`]+)`/g, '<code style="background:#27272a;padding:2px 6px;border-radius:4px;font-size:13px">$1</code>')
+        .replace(/^- (.+)/gm, '<li>$1</li>')
+        .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
+        .replace(/\n/g, '<br>')
+        .replace(/<br><br>/g, '</p><p>')
+      html = '<p>' + html + '</p>'
+      return html
     },
 
     renderMermaidDiagrams() {
@@ -874,6 +978,17 @@ header h1 {
   background: #27272a;
   border-color: #ef4444;
   color: #ef4444;
+}
+
+.new-btn {
+  border-color: #3f3f46;
+  color: #a1a1aa;
+}
+
+.new-btn:hover {
+  background: #27272a;
+  border-color: #22c55e;
+  color: #22c55e;
 }
 
 .modal-overlay {
@@ -1149,6 +1264,31 @@ header h1 {
 }
 .bubble .content ul { margin: 4px 0; padding-left: 20px; }
 .bubble .content li { margin-bottom: 2px; }
+.bubble .content .chat-table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+  font-size: 13px;
+}
+.bubble .content .chat-table th {
+  background: #27272a;
+  color: #f97316;
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 600;
+  border: 1px solid #3f3f46;
+}
+.bubble .content .chat-table td {
+  padding: 5px 10px;
+  border: 1px solid #3f3f46;
+  color: #e4e4e7;
+}
+.bubble .content .chat-table tr:nth-child(even) td {
+  background: #1f1f23;
+}
+.bubble .content .chat-table tr:hover td {
+  background: #27272a;
+}
 
 .file-preview {
   margin-bottom: 8px;

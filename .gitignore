@@ -1,8 +1,10 @@
 # --- Sensitive files (DO NOT COMMIT) ---
 .env
 coros-chatbox/backend/.env
+coros-chatbox/backend/data/
 
 # --- Python ---
+.venv/
 __pycache__/
 *.pyc
 *.pyo
