@@ -201,4 +201,4 @@ project3/
 
 ---
 
-*Developed for Gary LAM — 香港跑手，49歲，VO2max 51，全馬 3:58。*
+*Developed for Gary LAM *
