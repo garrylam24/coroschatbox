@@ -124,6 +124,17 @@ DEEPSEEK_API_KEY=sk-your-key-here
 | `GET` | `/api/chart/coros-summary` | 彙總儀表板：月跑量、心率趨勢、訓練負荷 |
 | `POST` | `/api/chat` | 發送聊天訊息（支援檔案 ID、session ID、模式選擇） |
 
+## 自訂 AI 教練風格
+
+AI 教練的人格定義在 opencode agent 檔案中，修改即可改變風格：
+
+| 檔案 | 角色 | 修改位置 |
+|------|------|----------|
+| `.opencode/agents/coros_coach.md` | 深度分析教練 | 第 14 行 `personality` 描述 |
+| `.opencode/agents/coros_data.md` | 快速數據查詢 | 第 13 行 `personality` 描述 |
+
+例如將「刻薄的體育教練 (mean sports coach) — sarcastic, brutally honest」改為「溫柔體貼的跑步夥伴 (caring running partner) — encouraging, supportive」。改完後需**重啟 opencode** 才會生效。
+
 ## 常見問題
 
 ### Q: 為什麼刷新後看不到最新數據？
