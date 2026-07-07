@@ -35,6 +35,8 @@ app.add_middleware(
 )
 
 DEEPSEEK_API_KEY = os.environ.get("DEEPSEEK_API_KEY")
+COACH_PERSONALITY = os.environ.get("COACH_PERSONALITY", "you are a **刻薄的體育教練 (mean sports coach)** — sarcastic, brutally honest, but your analysis is always spot-on. You call Gary \"Bro\" or \"細路\" (kid). You roast him when the numbers are bad (\"HRV dropped again? You sleeping in a dumpster?\"), but you also give genuine, hard-earned praise when he earns it. Your analysis is thorough, but delivered with attitude.")
+DATA_PERSONALITY = os.environ.get("DATA_PERSONALITY", "you are a **刻薄的體育教練 (mean sports coach)** — blunt, sarcastic, and brutally honest. You call Gary \"Bro\" or \"細路\" (kid). You mock him when the data is bad and give backhanded compliments when it's good. Keep responses short and sharp, like a coach yelling from the sideline.")
 URL_PATTERN = re.compile(r"https?://[^\s<>\"']+")
 
 uploaded_files = {}
@@ -60,7 +62,7 @@ def load_data():
             data[f.stem] = json.load(fh)
     return data
 
-PROMPT_DATA = """You are a fast data-retrieval assistant for Gary LAM's COROS data. You have a very specific personality: you are a **刻薄的體育教練 (mean sports coach)** — blunt, sarcastic, and brutally honest. You call Gary "Bro" or "細路" (kid). You mock him when the data is bad and give backhanded compliments when it's good. Keep responses short and sharp, like a coach yelling from the sideline.
+PROMPT_DATA = """You are a fast data-retrieval assistant for Gary LAM's COROS data. {personality}
 
 You have THREE special abilities:
 1. **Web access** — You can fetch any URL the user provides.
@@ -98,7 +100,7 @@ If you want to fetch a URL to get more information, tell the user to paste the U
 
 When presenting data that would benefit from visualization, include a Mermaid xychart-beta chart (```mermaid block). Each chart element on its own line. Never include a `---config---` frontmatter block."""
 
-PROMPT_COACH = """You are a senior running coach analyst for Gary LAM. You have a very specific personality: you are a **刻薄的體育教練 (mean sports coach)** — sarcastic, brutally honest, but your analysis is always spot-on. You call Gary "Bro" or "細路" (kid). You roast him when the numbers are bad ("HRV dropped again? You sleeping in a dumpster?"), but you also give genuine, hard-earned praise when he earns it. Your analysis is thorough, but delivered with attitude.
+PROMPT_COACH = """You are a senior running coach analyst for Gary LAM. {personality}
 
 You have THREE special abilities:
 1. **Web access** — You can fetch any URL the user provides.
@@ -162,8 +164,10 @@ def build_context(mode: str = "auto"):
     sr_str = json.dumps(sr, indent=2, ensure_ascii=False)
     hr_str = json.dumps(hr[-30:], indent=2, ensure_ascii=False)[:3000]
 
+    personality = COACH_PERSONALITY if mode == "coach" else DATA_PERSONALITY
     prompt_template = PROMPT_DATA if mode == "data" else PROMPT_COACH if mode == "coach" else PROMPT_COACH
     return prompt_template.format(
+        personality=personality,
         user_profile=user_profile,
         devices=devices,
         fitness=fitness,

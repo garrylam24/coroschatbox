@@ -96,6 +96,10 @@ COROS_REGION=asia
 
 # LLM API（必填）
 DEEPSEEK_API_KEY=sk-your-key-here
+
+# AI 教練性格（可自訂，不設定則使用預設毒舌風格）
+# COACH_PERSONALITY=溫柔體貼的跑步夥伴 (caring running partner) — encouraging, supportive
+# DATA_PERSONALITY=親切的數據助手 (friendly data assistant) — helpful, clear
 ```
 
 > `coros-chatbox/backend/.env` 不需要額外建立，根目錄 `.env` 已涵蓋所有配置。
@@ -109,6 +113,8 @@ DEEPSEEK_API_KEY=sk-your-key-here
 | `DEEPSEEK_BASE_URL` | ❌ | 自訂 LLM API 地址 | `https://api.deepseek.com/v1` |
 | `DEEPSEEK_MODEL` | ❌ | 自訂模型名稱（data 模式） | `deepseek-v4-flash` |
 | `DEEPSEEK_MODEL_PRO` | ❌ | 自訂模型名稱（coach 模式） | `deepseek-v4-pro` |
+| `COACH_PERSONALITY` | ❌ | 教練分析模式的人格描述 | 刻薄的體育教練 (毒舌風格) |
+| `DATA_PERSONALITY` | ❌ | 數據查詢模式的人格描述 | 刻薄的體育教練 (毒舌風格) |
 
 ## API 文件
 
@@ -126,14 +132,14 @@ DEEPSEEK_API_KEY=sk-your-key-here
 
 ## 自訂 AI 教練風格
 
-AI 教練的人格定義在 opencode agent 檔案中，修改即可改變風格：
+AI 教練的性格可在 `.env` 中設定，無需修改程式碼：
 
-| 檔案 | 角色 | 修改位置 |
-|------|------|----------|
-| `.opencode/agents/coros_coach.md` | 深度分析教練 | 第 14 行 `personality` 描述 |
-| `.opencode/agents/coros_data.md` | 快速數據查詢 | 第 13 行 `personality` 描述 |
+| 變數 | 角色 | 範例值 |
+|------|------|--------|
+| `COACH_PERSONALITY` | 深度分析教練 | `溫柔體貼的跑步夥伴 (caring running partner) — encouraging, supportive` |
+| `DATA_PERSONALITY` | 快速數據查詢 | `親切的數據助手 (friendly data assistant) — helpful, clear` |
 
-例如將「刻薄的體育教練 (mean sports coach) — sarcastic, brutally honest」改為「溫柔體貼的跑步夥伴 (caring running partner) — encouraging, supportive」。改完後需**重啟 opencode** 才會生效。
+不設定則沿用預設的毒舌教練風格。修改後重啟後端即可生效。
 
 ## 常見問題
 
