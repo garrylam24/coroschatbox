@@ -960,7 +960,7 @@ async def chat(req: ChatRequest):
     if not DEEPSEEK_API_KEY:
         raise HTTPException(status_code=500, detail="DEEPSEEK_API_KEY not set.")
 
-    data_keywords = ["跑量", "里程", "sleep", "心率", "配速", "list", "fetch", "query", "data", "show", "查詢", "上週", "昨天", "今天", "我的數據", "get data", "volume", "mileage", "distance", "pace", "heart rate", "hr", "recovery", "record", "log"]
+    data_keywords = ["跑量", "里程", "sleep", "心率", "配速", "list", "fetch", "query", "data", "show", "查詢", "上週", "昨天", "今天", "我的數據", "get data", "volume", "mileage", "distance", "pace", "heart rate", "hr", "recovery", "record", "log", "天氣", "weather", "溫度", "濕度", "炎熱", "潮濕", "rain", "humidity"]
     coach_keywords = ["分析", "建議", "diagnose", "overtrain", "trend", "plan", "advice", "evaluate", "correlation", "pattern", "診斷", "趨勢", "計劃", "過度訓練", "suggestion", "improve", "should", "why", "compare", "forecast", "predict"]
 
     mode = req.mode
