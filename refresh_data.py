@@ -3,11 +3,17 @@ refresh_data.py — Refresh COROS data JSON files by calling the COROS Training 
 
 Usage:
     Set COROS_EMAIL, COROS_PASSWORD, and COROS_REGION in .env (this dir) or env vars.
-    Then: python refresh_data.py
+
+    # Fetch latest data (incremental, since last refresh)
+    python refresh_data.py
+
+    # Fetch/replace data for a specific month
+    python refresh_data.py --month 2026-06
 
 Works with: https://teamapi.coros.com (auto-detected base URL for your account)
 """
 
+import argparse
 import hashlib
 import json
 import os
@@ -174,9 +180,15 @@ def write_last_refresh(date_str: str):
     )
 
 
-def fetch_activities(auth: dict, days: int = 200, since_day: str | None = None) -> list:
+def fetch_activities(auth: dict, days: int = 200, since_day: str | None = None, month: str | None = None) -> list:
     end = datetime.now(timezone.utc)
-    if since_day:
+    if month:
+        start = datetime.strptime(f"{month}-01", "%Y-%m-%d")
+        if start.month == 12:
+            end = datetime(start.year + 1, 1, 1) - timedelta(seconds=1)
+        else:
+            end = datetime(start.year, start.month + 1, 1) - timedelta(seconds=1)
+    elif since_day:
         start = datetime.strptime(since_day, "%Y-%m-%d") - timedelta(days=1)
     else:
         start = end - timedelta(days=days)
@@ -431,23 +443,33 @@ def load_existing(filename: str):
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Refresh COROS data from Training Hub API")
+    parser.add_argument("--month", type=str, help="Specific month to refresh (e.g. 2026-06)")
+    args = parser.parse_args()
+
     print("COROS Data Refresh")
+    if args.month:
+        print(f"  Month: {args.month}")
     print("=" * 50)
 
     auth = login()
 
-    last_date = read_last_refresh()
-    if last_date:
-        print(f"\nLast refresh was on {last_date}, fetching only newer data ...")
-        days = 200
-        since_day = last_date
-    else:
-        print("\nNo previous refresh found, fetching full history ...")
+    if args.month:
         days = 200
         since_day = None
+    else:
+        last_date = read_last_refresh()
+        if last_date:
+            print(f"\nLast refresh was on {last_date}, fetching only newer data ...")
+            days = 200
+            since_day = last_date
+        else:
+            print("\nNo previous refresh found, fetching full history ...")
+            days = 200
+            since_day = None
 
     print("\nFetching activities ...")
-    activities = fetch_activities(auth, days=days, since_day=since_day)
+    activities = fetch_activities(auth, days=days, since_day=since_day, month=args.month)
     if activities:
         records = to_sport_records(activities)
         print("\nFetching lap splits for running activities (parallel) ...")
@@ -482,13 +504,20 @@ def main():
 
         # Merge with existing data
         existing = load_existing("sport_records.json")
-        if existing and since_day:
-            new_keys = {(r["date"], r["sport_code"]) for r in records}
-            merged = records + [r for r in existing if (r["date"], r["sport_code"]) not in new_keys]
+        if existing:
+            if args.month:
+                # Replace records within the specified month, keep everything else
+                merged = records + [r for r in existing if not r["date"].startswith(args.month)]
+                print(f"  Replaced data for {args.month}: {len(records)} records inserted")
+            elif since_day:
+                new_keys = {(r["date"], r["sport_code"]) for r in records}
+                merged = records + [r for r in existing if (r["date"], r["sport_code"]) not in new_keys]
+                n_new = len(records)
+                print(f"  Merged: {len(existing)} existing + {n_new} new = {len(merged)} total")
+            else:
+                merged = records
             merged.sort(key=lambda r: r["date"], reverse=True)
-            n_new = len(records)
             records = merged
-            print(f"  Merged: {len(existing)} existing + {n_new} new = {len(records)} total")
         save_json("sport_records.json", records)
 
         hr = to_hr_data(activities)
