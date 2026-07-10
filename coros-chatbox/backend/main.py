@@ -92,6 +92,8 @@ Here is the user's COROS data context:
 ## Average Heart Rate (recent 90 days)
 {avg_hr}
 
+A Hong Kong Observatory weather report is included in the context when the user asks about training or weather keywords. Use it to correlate performance with conditions (heat, humidity, rain, UV).
+
 Always answer in Traditional Chinese (繁體中文).
 
 Your role: just fetch and present the data the user asks for. Be short and factual. List the numbers and stop. Do NOT perform deep analysis, correlation, or training advice — refer to the coach mode if the user asks for deeper insight.
@@ -147,6 +149,8 @@ Here is the user's COROS data context:
 
 ## Average Heart Rate (recent 90 days)
 {avg_hr}
+
+A Hong Kong Observatory weather report is included in the context upon request. Factor in temperature, humidity, rainfall, and UV when analyzing run performance — e.g., "today's 32°C 80% humidity explains the elevated HR."
 
 Always answer in Traditional Chinese (繁體中文).
 
@@ -716,6 +720,44 @@ async def fetch_url(url: str) -> str:
         else:
             return resp.text[:8000]
 
+HKO_WEATHER_URL = "https://data.weather.gov.hk/weatherAPI/opendata/weather.php"
+
+async def fetch_hko_weather() -> str:
+    """Fetch Hong Kong Observatory current weather report."""
+    try:
+        async with httpx.AsyncClient(timeout=10) as client:
+            resp = await client.get(HKO_WEATHER_URL, params={"dataType": "rhrread", "lang": "tc"})
+            resp.raise_for_status()
+            data = resp.json()
+
+        temps = data.get("temperature", {}).get("data", [])
+        t = next((t for t in temps if t["place"] == "香港天文台"), temps[0] if temps else None)
+        temp_str = f"{t['value']}°C" if t else "N/A"
+
+        humidity = data.get("humidity", {}).get("data", [])
+        h = humidity[0] if humidity else None
+        humid_str = f"{h['value']}%" if h else "N/A"
+
+        rainfall = data.get("rainfall", {}).get("data", [])
+        rain_max = max((r.get("max", 0) or 0) for r in rainfall) if rainfall else 0
+
+        uv = data.get("uvindex", {}).get("data", [])
+        uv_str = f"{uv[0]['value']} ({uv[0]['desc']})" if uv else "N/A"
+
+        warnings = data.get("warningMessage", [])
+        warn_str = " | ".join(warnings) if warnings else "None"
+
+        return (
+            f"Current Hong Kong weather (HKO, updated {data.get('updateTime','N/A')}):\n"
+            f"  Temperature: {temp_str}\n"
+            f"  Humidity: {humid_str}\n"
+            f"  Rainfall (past hour): {rain_max}mm\n"
+            f"  UV Index: {uv_str}\n"
+            f"  Warnings: {warn_str}"
+        )
+    except Exception as e:
+        return f"Weather data unavailable: {e}"
+
 def extract_urls(text: str) -> list[str]:
     return list(set(URL_PATTERN.findall(text)))
 
@@ -964,6 +1006,12 @@ async def chat(req: ChatRequest):
             user_message += f"\n\n[Fetched from {url}]\n{summary}\n[/Fetched]"
         except Exception as e:
             user_message += f"\n\n[Failed to fetch {url}: {str(e)}]"
+
+    weather_keywords = ["天氣", "weather", "hot", "cold", "rain", "humidity", "溫度", "濕度", "炎熱", "潮濕", "暑", "heat"]
+    use_weather = mode == "coach" or any(kw in req.message.lower() for kw in weather_keywords)
+    if use_weather:
+        weather_report = await fetch_hko_weather()
+        user_message += f"\n\n[Hong Kong Observatory Weather Report]\n{weather_report}\n[/Weather]"
 
     chart_keywords = ["chart", "圖表", "visualize", "plot", "graph", "trend", "volume", "跑量", "regression", "weekly"]
     wants_chart = any(kw in req.message.lower() for kw in chart_keywords)
