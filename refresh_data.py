@@ -91,8 +91,23 @@ def login() -> dict:
             if cache.get("email") == email:
                 remaining = (datetime.fromisoformat(cache["expires_at"]) - datetime.now()).total_seconds() / 3600
                 if remaining > 1:
-                    print(f"  Using cached token ({remaining:.0f}h remaining)")
-                    return cache
+                    # Verify cached token still works
+                    h = {
+                        "Content-Type": "application/json",
+                        "accessToken": cache["access_token"],
+                        "yfheader": json.dumps({"userId": cache["user_id"]}),
+                    }
+                    try:
+                        r = httpx.get(
+                            f"{cache['base']}/activity/query?size=1&pageNumber=1&startDay=20260101&endDay={datetime.now().strftime('%Y%m%d')}",
+                            headers=h, timeout=15,
+                        )
+                        if r.json().get("result") == "0000":
+                            print(f"  Using cached token ({remaining:.0f}h remaining)")
+                            return cache
+                        print(f"  Cached token stale (result={r.json().get('result')}), re-logging ...")
+                    except Exception:
+                        print(f"  Cached token verification failed, re-logging ...")
         except Exception:
             pass
 
