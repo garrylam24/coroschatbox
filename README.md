@@ -8,6 +8,7 @@
 [![Vite](https://img.shields.io/badge/Vite-5-646cff?logo=vite&style=flat-square)](https://vitejs.dev)
 [![Chart.js](https://img.shields.io/badge/Chart.js-4.5-ff6384?logo=chartdotjs&style=flat-square)](https://www.chartjs.org)
 [![License](https://img.shields.io/badge/License-MIT-3da639?style=flat-square)](LICENSE)
+[![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--07--10-0891b2?style=flat-square)](https://github.com/garrylam24/coroschatbox)
 
 </div>
 
