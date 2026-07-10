@@ -83,10 +83,14 @@ npm run dev
 ### 刷新數據
 
 ```bash
+# 增量更新（只取最近更新以來的活動）
 python refresh_data.py
+
+# 指定月份（替換該月全部數據，適合補資料或修正）
+python refresh_data.py --month 2026-06
 ```
 
-或在聊天介面按 **「Refresh COROS」** 按鈕。
+或在聊天介面按 **「Refresh COROS」** 按鈕（等同無參數增量模式）。
 
 ## 配置說明
 
