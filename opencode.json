@@ -20,6 +20,14 @@
       "permission": { "read": "allow", "edit": "ask", "bash": "allow" }
     },
 
+    // 專家 3：Grill Me — 問責式羞辱教練
+    "grill_me": {
+      "description": "Use this agent ONLY for accountability roasting: calling out missed runs, lazy training, bad pacing, and making excuses. Not for data analysis or simple queries.",
+      "mode": "subagent",
+      "model": "deepseek/deepseek-v4-flash",
+      "permission": { "read": "allow", "edit": "ask", "bash": "allow" }
+    },
+
     // 專家 2：深度體能診斷
     // 遷移對照：deepseek-reasoner ➡️ deepseek-v4-pro 或是 v4-flash (啟用思考)
     // 這裡強烈推薦直接升級到 v4-pro 來當你的 AI 教練，其 49B 的激活參數在推理複雜生理指標（如 HRV 與上坡心率漂移）時更具備 Claude 級別的實力！

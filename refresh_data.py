@@ -13,6 +13,7 @@ import json
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
 
@@ -23,6 +24,7 @@ load_dotenv()
 
 DATA_DIR = Path(__file__).parent / "coros-chatbox" / "backend" / "data"
 TOKEN_CACHE = Path.home() / ".coros_token_cache.json"
+LAST_REFRESH_FILE = DATA_DIR / ".last_refresh.json"
 
 # Known COROS API hosts to try
 API_HOSTS = [
@@ -102,7 +104,7 @@ def login() -> dict:
             }
             try:
                 r = httpx.get(
-                    f"{base}/activity/query?size=1&pageNumber=1&startDay=20260101&endDay=20260610",
+                    f"{base}/activity/query?size=1&pageNumber=1&startDay=20260101&endDay={datetime.now().strftime('%Y%m%d')}",
                     headers=h, timeout=15,
                 )
                 if r.json().get("result") == "0000":
@@ -155,9 +157,29 @@ def api_post(auth: dict, path: str, payload: dict = None) -> dict | None:
 
 # --- Data fetching ---
 
-def fetch_activities(auth: dict, days: int = 200) -> list:
+def read_last_refresh() -> str | None:
+    if LAST_REFRESH_FILE.exists():
+        try:
+            data = json.loads(LAST_REFRESH_FILE.read_text(encoding="utf-8"))
+            return data.get("last_date")
+        except Exception:
+            return None
+    return None
+
+
+def write_last_refresh(date_str: str):
+    LAST_REFRESH_FILE.write_text(
+        json.dumps({"last_date": date_str, "updated_at": datetime.now().isoformat()}, indent=2),
+        encoding="utf-8",
+    )
+
+
+def fetch_activities(auth: dict, days: int = 200, since_day: str | None = None) -> list:
     end = datetime.now(timezone.utc)
-    start = end - timedelta(days=days)
+    if since_day:
+        start = datetime.strptime(since_day, "%Y-%m-%d") - timedelta(days=1)
+    else:
+        start = end - timedelta(days=days)
     start_day = start.strftime("%Y%m%d")
     end_day = end.strftime("%Y%m%d")
 
@@ -398,37 +420,95 @@ def save_json(filename: str, data):
     print(f"  Wrote {path.name} ({count} records)")
 
 
+def load_existing(filename: str):
+    path = DATA_DIR / filename
+    if path.exists():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+    return None
+
+
 def main():
     print("COROS Data Refresh")
     print("=" * 50)
 
     auth = login()
 
+    last_date = read_last_refresh()
+    if last_date:
+        print(f"\nLast refresh was on {last_date}, fetching only newer data ...")
+        days = 200
+        since_day = last_date
+    else:
+        print("\nNo previous refresh found, fetching full history ...")
+        days = 200
+        since_day = None
+
     print("\nFetching activities ...")
-    activities = fetch_activities(auth)
+    activities = fetch_activities(auth, days=days, since_day=since_day)
     if activities:
         records = to_sport_records(activities)
-        print("\nFetching lap splits for running activities ...")
+        print("\nFetching lap splits for running activities (parallel) ...")
         run_activities = [a for a in activities if a.get("sportType") in (100, 101, 102, 103)]
         n_fetched = 0
-        for a in run_activities:
-            lid = a.get("labelId")
-            if not lid:
-                continue
-            detail = fetch_activity_detail(auth, lid, a["sportType"])
-            if detail:
-                splits = extract_lap_splits(detail)
-                date = _extract_date(a)
-                for rec in records:
-                    if rec["date"] == date and rec["sport_code"] == a.get("sportType"):
-                        rec["lap_splits"] = splits
-                        break
-                n_fetched += 1
+        max_workers = 8
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            fut_map = {}
+            for a in run_activities:
+                lid = a.get("labelId")
+                if not lid:
+                    continue
+                fut = executor.submit(fetch_activity_detail, auth, lid, a["sportType"])
+                fut_map[fut] = a
+            for fut in as_completed(fut_map):
+                a = fut_map[fut]
+                try:
+                    detail = fut.result()
+                except Exception:
+                    detail = None
+                if detail:
+                    splits = extract_lap_splits(detail)
+                    date = _extract_date(a)
+                    for rec in records:
+                        if rec["date"] == date and rec["sport_code"] == a.get("sportType"):
+                            rec["lap_splits"] = splits
+                            break
+                    n_fetched += 1
+                if n_fetched % 20 == 0 and n_fetched > 0:
+                    print(f"    ... {n_fetched} done")
         print(f"  Fetched lap splits for {n_fetched} activities")
+
+        # Merge with existing data
+        existing = load_existing("sport_records.json")
+        if existing and since_day:
+            new_keys = {(r["date"], r["sport_code"]) for r in records}
+            merged = records + [r for r in existing if (r["date"], r["sport_code"]) not in new_keys]
+            merged.sort(key=lambda r: r["date"], reverse=True)
+            n_new = len(records)
+            records = merged
+            print(f"  Merged: {len(existing)} existing + {n_new} new = {len(records)} total")
         save_json("sport_records.json", records)
+
         hr = to_hr_data(activities)
         if hr:
+            existing_hr = load_existing("avg_heart_rate.json")
+            if existing_hr and since_day:
+                new_hr_dates = {r["date"] for r in hr}
+                merged_hr = hr + [r for r in existing_hr if r["date"] not in new_hr_dates]
+                merged_hr.sort(key=lambda r: r["date"], reverse=True)
+                hr = merged_hr
             save_json("avg_heart_rate.json", hr)
+
+        # Update last refresh date
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        write_last_refresh(today)
+        print(f"  Last refresh updated to {today}")
+    else:
+        print("  No new activities found.")
+        if not since_day:
+            print("  WARNING: No activities fetched at all. Check credentials / API availability.")
 
     print("\nFetching dashboard ...")
     dashboard = fetch_dashboard(auth)

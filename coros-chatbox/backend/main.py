@@ -98,7 +98,25 @@ Your role: just fetch and present the data the user asks for. Be short and factu
 
 If you want to fetch a URL to get more information, tell the user to paste the URL and you'll analyze it.
 
-When presenting data that would benefit from visualization, include a Mermaid xychart-beta chart (```mermaid block). Each chart element on its own line. Never include a `---config---` frontmatter block."""
+When presenting data that would benefit from visualization, include a valid Mermaid xychart-beta chart (```mermaid block). Follow this EXACT format — each element on its own line, no commas between elements, no `---config---` block:
+
+```mermaid
+xychart-beta
+  title "Chart Title"
+  x-axis "Label" ["cat1", "cat2", "cat3"]
+  y-axis "Label" 0 --> 200
+  line [10, 20, 30]
+```
+
+Rules:
+- ALWAYS use `xychart-beta` (not just `xychart`)
+- `title`, `x-axis`, `y-axis` labels MUST be in double quotes
+- `x-axis` categories in square brackets, each in double quotes
+- `y-axis` range: min --> max (double dash, not single)
+- Data series (`line`, `bar`) in square brackets with numbers
+- NO commas between chart elements (use newlines instead)
+- NO `---config---` frontmatter
+- Labels with special characters (℃, %, /, km/h, bpm) MUST be in double quotes"""
 
 PROMPT_COACH = """You are a senior running coach analyst for Gary LAM. {personality}
 
@@ -141,7 +159,26 @@ Your role: analyze patterns, correlate multiple data streams, diagnose training 
 
 If you want to fetch a URL to get more information, tell the user to paste the URL and you'll analyze it.
 
-Whenever you present data that would benefit from visualization (volume, pace trends, heart rate trends, training load comparison, race analysis, etc.), ALWAYS include a Mermaid xychart-beta chart in ```mermaid blocks. Each chart element (title, x-axis, y-axis, line, bar) MUST be on its own separate line — never commas between them. Never include a `---config---` frontmatter block.
+Whenever you present data that would benefit from visualization (volume, pace trends, heart rate trends, training load comparison, race analysis, etc.), ALWAYS include a valid Mermaid xychart-beta chart in ```mermaid blocks. Follow this EXACT format:
+
+```mermaid
+xychart-beta
+  title "Chart Title"
+  x-axis "Label" ["cat1", "cat2", "cat3"]
+  y-axis "Label" 0 --> 200
+  line [10, 20, 30]
+```
+
+CRITICAL RULES (failure to follow these WILL cause rendering errors):
+- ALWAYS use `xychart-beta` (not just `xychart`)
+- `title`, `x-axis`, `y-axis` labels MUST be in double quotes
+- `x-axis` categories in square brackets, each category in double quotes
+- `y-axis` range: min value, space, `-->` (double dash greater-than), space, max value
+- Data series (`line`, `bar`) in square brackets with numeric values only
+- Every chart element on its own line — NEVER commas between elements
+- NO `---config---` frontmatter block
+- NO trailing commas inside brackets
+- Labels with special characters (℃, %, /, km/h, bpm) MUST be in double quotes
 
 Be thorough and analytical. Back up every claim with specific numbers. Proactive follow-up insights are encouraged."""
 
@@ -601,6 +638,63 @@ def _avg_of(values):
     return round(sum(values) / len(values)) if values else None
 
 
+def clean_mermaid_code(text: str) -> str:
+    """Fix common Mermaid syntax errors in LLM-generated chart code."""
+    def fix_block(match):
+        code = match.group(1)
+        original = code
+
+        # Fix 1: xychart -> xychart-beta
+        code = re.sub(r'^\s*xychart(?!-beta)\b', 'xychart-beta', code, flags=re.MULTILINE)
+
+        # Fix 2: Remove any --- frontmatter/config block (---config---...--- or plain ---...---)
+        code = re.sub(r'^---(?:config---)?\s*\n[\s\S]*?\n---\s*(\n|$)', '', code)
+
+        # Fix 3: y-axis range with dots or wrong dash: "0 .. 200" or "0 - 200" -> "0 --> 200"
+        code = re.sub(
+            r'(y-axis\s+"[^"]*"\s+)(\d+(?:\.\d+)?)\s*(?:\.{2,}|-{1,2}\s*>?|→)\s*(\d+(?:\.\d+)?)',
+            r'\1\2 --> \3',
+            code
+        )
+
+        # Fix 4: y-axis range with underscore separator: "0_-->_200" -> "0 --> 200"
+        code = re.sub(r'(\d+)\s*_?-->\s*_?(\d+)', r'\1 --> \2', code)
+
+        # Fix 5: Remove trailing commas inside brackets [10, 20, 30,] -> [10, 20, 30]
+        code = re.sub(r',\s*\]', ']', code)
+
+        # Fix 6: Remove commas between chart elements (e.g., "title '...',\nx-axis")
+        # Line ending with comma followed by newline and next element
+        code = re.sub(r',\s*\n\s+(title|x-axis|y-axis|line|bar)', r'\n  \1', code)
+
+        # Fix 7a: Split elements onto separate lines if they're all on one line
+        code = re.sub(r'^xychart-beta\s+', 'xychart-beta\n  ', code)
+        code = re.sub(r'"\s+(?=x-axis\b)', '"\n  ', code)
+        code = re.sub(r'\]\s+(?=y-axis\b)', ']\n  ', code)
+        code = re.sub(r'(\d+)\s+(?=(?:bar|line)\b)', r'\1\n  ', code)
+
+        # Fix 7b: Ensure double quotes around labels that aren't quoted
+        # title, x-axis, y-axis values followed by text without quotes
+        def ensure_quoted(label_match):
+            prefix = label_match.group(1)
+            label = label_match.group(2).strip()
+            if not label.startswith('"') and label:
+                return prefix + '"' + label + '"'
+            return label_match.group(0)
+
+        code = re.sub(r'(title\s+)([^"\n]+)', ensure_quoted, code)
+        code = re.sub(r'(x-axis\s+)([^"\n\[]+)', ensure_quoted, code)
+        code = re.sub(r'(y-axis\s+)([^"\n\d]+?)(?=\s+\d)', ensure_quoted, code)
+
+        if code != original:
+            safe = lambda s: s.encode('ascii', errors='replace').decode('ascii')
+            print(f"[clean_mermaid] Fixed:\n  BEFORE: {safe(original.strip()[:120])}\n  AFTER:  {safe(code.strip()[:120])}", flush=True)
+        return f"```mermaid\n{code}```"
+
+    text = re.sub(r'```mermaid\n([\s\S]*?)```', fix_block, text)
+    return text
+
+
 async def fetch_url(url: str) -> str:
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -649,7 +743,18 @@ async def call_deepseek(messages: list, model: str = "deepseek-v4-flash", max_to
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "data_files": list(load_data().keys())}
+    import datetime
+    data = load_data()
+    latest_mtime = None
+    for f in DATA_DIR.glob("*.json"):
+        mtime = datetime.datetime.fromtimestamp(f.stat().st_mtime)
+        if latest_mtime is None or mtime > latest_mtime:
+            latest_mtime = mtime
+    return {
+        "status": "ok",
+        "data_files": list(data.keys()),
+        "last_updated": latest_mtime.isoformat() if latest_mtime else None
+    }
 
 @app.post("/api/refresh")
 def refresh_data():
@@ -661,7 +766,7 @@ def refresh_data():
     try:
         result = subprocess.run(
             [sys.executable, str(script)],
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=600,
             cwd=str(project_root),
             env=os.environ
         )
@@ -826,7 +931,7 @@ async def chat(req: ChatRequest):
     model = "deepseek-v4-pro" if mode == "coach" else "deepseek-v4-flash"
     thinking_mode = (mode == "coach")
     sid = req.session_id or uuid.uuid4().hex[:12]
-    print(f"[chat] session={sid[:8]} mode={mode} model={model} thinking={thinking_mode} msg='{req.message[:60]}'", flush=True)
+    print(f"[chat] session={sid[:8]} mode={mode} model={model} thinking={thinking_mode} msg='{req.message[:60].encode('ascii', errors='replace').decode('ascii')}'", flush=True)
     if sid not in conversations:
         conversations[sid] = [{"role": "system", "content": build_context(mode)}]
     else:
@@ -863,7 +968,24 @@ async def chat(req: ChatRequest):
     chart_keywords = ["chart", "圖表", "visualize", "plot", "graph", "trend", "volume", "跑量", "regression", "weekly"]
     wants_chart = any(kw in req.message.lower() for kw in chart_keywords)
     if wants_chart:
-        user_message += "\n\n[IMPORTANT: You MUST include a valid Mermaid xychart-beta chart in your response. Use the format: ```mermaid\nxychart-beta\n  title \"...\"\n  x-axis [...]\n  y-axis \"...\" 0 --> N\n  line [...]\n```]"
+        user_message += (
+            "\n\n[IMPORTANT: You MUST include a valid Mermaid xychart-beta chart. "
+            "Follow this EXACT format:\n"
+            "```mermaid\n"
+            "xychart-beta\n"
+            "  title \"Chart Title\"\n"
+            "  x-axis \"Label\" [\"cat1\", \"cat2\", \"cat3\"]\n"
+            "  y-axis \"Label\" 0 --> 200\n"
+            "  line [10, 20, 30]\n"
+            "```\n"
+            "RULES:\n"
+            "- Use `xychart-beta` (not just `xychart`)\n"
+            "- Labels MUST be in double quotes\n"
+            "- Each element on its own line, NO commas between elements\n"
+            "- y-axis range: min --> max (double dash)\n"
+            "- NO `---config---` block\n"
+            "- NO trailing commas in brackets\n"
+            "- Labels with special characters (℃, %, /, km/h, bpm) MUST be quoted]")
 
     conversations[sid].append({"role": "user", "content": file_context + user_message})
 
@@ -873,6 +995,8 @@ async def chat(req: ChatRequest):
         conversations[sid].append({"role": "user", "content": "Please regenerate your response but this time you MUST include a Mermaid xychart-beta chart. Wrap it in a ```mermaid code block. Each element on its own line."})
         reply = await call_deepseek(conversations[sid], model=model, thinking=thinking_mode)
 
+    # Clean Mermaid syntax in response to fix common LLM errors
+    reply = clean_mermaid_code(reply)
     conversations[sid].append({"role": "assistant", "content": reply})
 
     if len(conversations[sid]) > 1 + MAX_HISTORY_EXCHANGES * 2:

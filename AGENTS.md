@@ -24,8 +24,16 @@ python analysis.py    # Print full 2026 YTD analysis
 
 ### Agent config
 
-- `opencode.json` — registers the `coros` MCP server and `coros` agent
-- `.opencode/agents/coros.md` — agent prompt with context and instructions
+- `opencode.json` — registers the `coros` MCP server and agents (`coros_data`, `coros_coach`, `grill_me`)
+- `.opencode/agents/*.md` — agent prompt files with context and instructions
+
+### Available agents
+
+| Agent | When to use |
+|---|---|
+| `@coros_data` | Simple data retrieval (mileage, sleep, HR, pace) |
+| `@coros_coach` | Deep training diagnosis, HRV, race strategy |
+| `@grill_me` | Accountability roasting — call me out for slacking |
 
 ### Restart required
 

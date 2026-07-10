@@ -4,14 +4,14 @@
       <h1>COROS Chatbox</h1>
       <p class="subtitle">Ask anything about your running data</p>
       <div class="header-toolbar">
-        <button class="export-btn" @click="refreshCorosData" :disabled="refreshing">
+        <button class="export-btn" @click="refreshCorosData" :disabled="refreshing" :title="lastUpdated ? 'Last updated: ' + new Date(lastUpdated).toLocaleString('zh-HK', {timeZone:'Asia/Hong_Kong'}) : 'Check latest update time'">
           {{ refreshing ? '🔄 Refreshing...' : '🔄 Refresh COROS' }}
         </button>
         <button v-if="selectedMessages.length > 0" class="export-btn" @click="showExportDialog = true">
           📄 Export ({{ selectedMessages.length }})
         </button>
-        <button v-if="selectedMessages.length > 0" class="export-btn clear-btn" @click="selectedMessages = []">
-          ✕ Clear
+        <button v-if="selectedMessages.length > 0" class="export-btn clear-btn" @click="deleteSelected">
+          🗑️ Delete
         </button>
         <button v-if="messages.length > 0" class="export-btn new-btn" @click="newConversation">
           🆕 New Conversation
@@ -214,6 +214,7 @@ export default {
       chartInstances: {},
       selectedMessages: [],
       refreshing: false,
+      lastUpdated: null,
       showExportDialog: false,
       exportFormat: 'html',
       exportTheme: 'dark',
@@ -240,6 +241,7 @@ export default {
     }
     const sid = localStorage.getItem('coros_session_id')
     if (sid) this.sessionId = sid
+    this.fetchLastUpdated()
   },
   watch: {
     messages: {
@@ -249,11 +251,25 @@ export default {
     sessionId(val) { localStorage.setItem('coros_session_id', val) }
   },
   methods: {
+    async fetchLastUpdated() {
+      try {
+        const res = await fetch('http://localhost:8000/api/health')
+        const data = await res.json()
+        if (data.last_updated) this.lastUpdated = data.last_updated
+      } catch (_) {}
+    },
     newConversation() {
       this.messages = []
       this.sessionId = Math.random().toString(36).substring(2, 14)
       this.selectedMessages = []
       localStorage.removeItem('coros_messages')
+    },
+    deleteSelected() {
+      const sorted = [...this.selectedMessages].sort((a, b) => b - a)
+      for (const idx of sorted) {
+        this.messages.splice(idx, 1)
+      }
+      this.selectedMessages = []
     },
     async onFileSelect(e) {
       const file = e.target.files[0]
@@ -392,6 +408,7 @@ export default {
           this.messages.push({ role: 'assistant', content: '✅ COROS data refreshed successfully!', mode: 'data' })
           this.showCorosCharts = false
           this.monthlyVolume = []
+          this.fetchLastUpdated()
         } else {
           this.messages.push({ role: 'assistant', content: '❌ Refresh failed:\n' + (data.stderr || 'Unknown error'), mode: 'data' })
         }
@@ -834,11 +851,15 @@ ${chartSections}
       this.$nextTick(() => {
         const elements = document.querySelectorAll('.mermaid')
         if (elements.length === 0) return
+        const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         elements.forEach(el => {
           if (el.dataset.rendered) return
           el.dataset.rendered = '1'
+          const code = el.textContent.trim()
+          mermaid.run({ nodes: [el] }).catch(() => {
+            el.innerHTML = `<div style="color:#a1a1aa;font-size:12px;margin-bottom:4px">⚠️ Chart render failed — raw data:</div><pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;text-align:left;overflow-x:auto;font-size:12px;line-height:1.5;color:#e4e4e7;white-space:pre-wrap">${esc(code)}</pre>`
+          })
         })
-        mermaid.run({ nodes: elements }).catch(err => { console.warn('Mermaid parse error:', err) })
       })
     }
   }
@@ -860,7 +881,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100vh;
-  max-width: 800px;
+  width: 75%;
   margin: 0 auto;
   padding: 0 16px;
 }
