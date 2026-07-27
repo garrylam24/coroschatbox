@@ -266,7 +266,8 @@ export default {
   computed: {
     lightboxImgStyle() {
       return {
-        width: '80vw',
+        maxHeight: '50vh',
+        width: 'auto',
         borderRadius: '8px',
         transform: `translate(${this.lightboxPanX}px, ${this.lightboxPanY}px) scale(${this.lightboxZoom})`,
         cursor: this.lightboxDragging ? 'grabbing' : 'grab',
