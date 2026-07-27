@@ -78,15 +78,15 @@
               <div v-if="msg.file.chartReady" class="gpx-charts">
                 <div class="chart-box small" v-if="msg.file.hasEle">
                   <h4>Elevation Profile</h4>
-                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:300px"></canvas>
+                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px"></canvas>
                 </div>
                 <div class="chart-box small" v-if="msg.file.hasHr">
                   <h4>Heart Rate</h4>
-                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:300px"></canvas>
+                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px"></canvas>
                 </div>
                 <div class="chart-box small" v-if="msg.file.hasCad">
                   <h4>Cadence</h4>
-                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:300px"></canvas>
+                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px"></canvas>
                 </div>
               </div>
             </div>
@@ -1237,13 +1237,13 @@ header h1 {
 }
 
 .chart-box.small {
-  padding: 8px;
-  margin-top: 8px;
+  padding: 4px;
+  margin-top: 4px;
 }
 
 .chart-box canvas {
   width: 100%;
-  max-height: 300px;
+  max-height: 150px;
 }
 
 .gpx-charts {
@@ -1563,6 +1563,7 @@ header h1 {
 
 .mermaid svg {
   max-width: 100%;
+  max-height: 150px;
   height: auto;
 }
 
