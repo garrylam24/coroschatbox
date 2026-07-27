@@ -171,11 +171,25 @@
     </div>
 
     <!-- Chart Lightbox -->
-    <div v-if="chartLightbox" class="lightbox-overlay" @click.self="chartLightbox = null" @keydown.esc="chartLightbox = null">
+    <div v-if="chartLightbox" class="lightbox-overlay" @click.self="chartLightbox = null" @keydown.esc="chartLightbox = null" ref="lightboxOverlay">
       <div class="lightbox-content">
         <button class="lightbox-close" @click="chartLightbox = null">&times;</button>
         <h3>{{ chartLightbox.title }}</h3>
-        <img :src="chartLightbox.src" style="width:80vw;border-radius:8px" />
+        <div class="lightbox-controls">
+          <button @click="lightboxZoomIn" title="Zoom In">➕</button>
+          <button @click="lightboxZoomOut" title="Zoom Out">➖</button>
+          <button @click="lightboxReset" title="Reset">⟲</button>
+        </div>
+        <div class="lightbox-img-wrap"
+          @mousedown="lightboxDragStart"
+          @mousemove="lightboxDragMove"
+          @mouseup="lightboxDragEnd"
+          @mouseleave="lightboxDragEnd"
+          @wheel.prevent="lightboxWheel">
+          <img :src="chartLightbox.src"
+            ref="lightboxImg"
+            :style="lightboxImgStyle" />
+        </div>
       </div>
     </div>
 
@@ -230,6 +244,14 @@ export default {
       exportTitle: 'COROS Training Report',
       exportIncludeCharts: true,
       chartLightbox: null,
+      lightboxZoom: 1,
+      lightboxPanX: 0,
+      lightboxPanY: 0,
+      lightboxDragging: false,
+      lightboxDragStartX: 0,
+      lightboxDragStartY: 0,
+      lightboxPanStartX: 0,
+      lightboxPanStartY: 0,
       examples: [
         'How was my running volume this year?',
         'What is my current VO2max and fitness level?',
@@ -239,6 +261,17 @@ export default {
         'Compare my monthly running volume',
         'Help me plan training for a race — paste URL below'
       ]
+    }
+  },
+  computed: {
+    lightboxImgStyle() {
+      return {
+        width: '80vw',
+        borderRadius: '8px',
+        transform: `translate(${this.lightboxPanX}px, ${this.lightboxPanY}px) scale(${this.lightboxZoom})`,
+        cursor: this.lightboxDragging ? 'grabbing' : 'grab',
+        transition: this.lightboxDragging ? 'none' : 'transform 0.15s ease'
+      }
     }
   },
   mounted() {
@@ -635,6 +668,9 @@ export default {
     },
 
     expandChart(type, el) {
+      this.lightboxZoom = 1
+      this.lightboxPanX = 0
+      this.lightboxPanY = 0
       if (type === 'canvas') {
         try {
           const dataUrl = el.toDataURL('image/png')
@@ -650,6 +686,30 @@ export default {
         this.chartLightbox = { src: dataUrl, title, type: 'image' }
       }
     },
+
+    lightboxZoomIn() { this.lightboxZoom = Math.min(this.lightboxZoom + 0.25, 5) },
+    lightboxZoomOut() { this.lightboxZoom = Math.max(this.lightboxZoom - 0.25, 0.25) },
+    lightboxReset() { this.lightboxZoom = 1; this.lightboxPanX = 0; this.lightboxPanY = 0 },
+
+    lightboxWheel(e) {
+      const delta = e.deltaY > 0 ? -0.15 : 0.15
+      this.lightboxZoom = Math.max(0.25, Math.min(5, this.lightboxZoom + delta))
+    },
+
+    lightboxDragStart(e) {
+      if (e.button !== 0) return
+      this.lightboxDragging = true
+      this.lightboxDragStartX = e.clientX
+      this.lightboxDragStartY = e.clientY
+      this.lightboxPanStartX = this.lightboxPanX
+      this.lightboxPanStartY = this.lightboxPanY
+    },
+    lightboxDragMove(e) {
+      if (!this.lightboxDragging) return
+      this.lightboxPanX = this.lightboxPanStartX + (e.clientX - this.lightboxDragStartX)
+      this.lightboxPanY = this.lightboxPanStartY + (e.clientY - this.lightboxDragStartY)
+    },
+    lightboxDragEnd() { this.lightboxDragging = false },
 
     renderMarkdown(text) {
       if (!text) return ''
@@ -1685,4 +1745,29 @@ header h1 {
   line-height: 1;
 }
 .lightbox-close:hover { color: #e4e4e7; }
+.lightbox-controls {
+  display: flex;
+  gap: 8px;
+}
+.lightbox-controls button {
+  background: #27272a;
+  border: 1px solid #52525b;
+  color: #e4e4e7;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.lightbox-controls button:hover { background: #3f3f46; }
+.lightbox-img-wrap {
+  overflow: hidden;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 </style>
