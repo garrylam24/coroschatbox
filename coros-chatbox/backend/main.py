@@ -797,6 +797,153 @@ async def fetch_hko_weather() -> str:
     except Exception as e:
         return f"Weather data unavailable: {e}"
 
+# ── Overpass API (OSM Road Surface) ─────────────────────────────
+
+OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+# Cache roadmap surface results by file_id
+_road_surface_cache: dict[str, dict] = {}
+
+HIGHWAY_LABELS = {
+    "motorway": "高速公路", "trunk": "主幹道", "primary": "主要道路",
+    "secondary": "次要道路", "tertiary": "地區道路",
+    "residential": "住宅區道路", "unclassified": "一般道路",
+    "service": "服務道路", "living_street": "生活街道",
+    "track": "田徑/泥路", "path": "小徑", "footway": "行人路",
+    "bridleway": "騎馬道", "cycleway": "單車徑", "pedestrian": "行人專用區",
+    "steps": "樓梯", "corridor": "走廊",
+    "road": "道路（未分類）", "bus_guideway": "巴士專線",
+    "raceway": "賽道", "motorway_link": "高速公路連接路",
+    "trunk_link": "主幹道連接路", "primary_link": "主要道路連接路",
+    "secondary_link": "次要道路連接路", "tertiary_link": "地區道路連接路",
+}
+
+SURFACE_LABELS = {
+    "paved": "鋪砌路面", "asphalt": "瀝青", "concrete": "混凝土",
+    "concrete:lanes": "混凝土車道", "concrete:plates": "混凝土板",
+    "paving_stones": "鋪路石", "sett": "小方石", "cobblestone": "鵝卵石",
+    "unpaved": "未鋪砌", "gravel": "碎石", "ground": "泥地",
+    "dirt": "泥土", "grass": "草地", "sand": "沙地",
+    "fine_gravel": "細碎石", "compacted": "壓實碎石",
+    "pebblestone": "卵石", "wood": "木板", "metal": "金屬",
+    "brick": "磚", "tartan": "田徑跑道",
+}
+
+def _sample_points(points: list[dict], max_samples: int = 50) -> list[dict]:
+    if len(points) <= max_samples:
+        return points
+    step = len(points) / max_samples
+    result = []
+    for i in range(max_samples):
+        idx = min(int(i * step), len(points) - 1)
+        result.append(points[idx])
+    return result
+
+def parse_gpx_track_points(content: bytes) -> list[dict]:
+    root = ET.fromstring(content)
+    ns = {"gpx": "http://www.topografix.com/GPX/1/1"}
+    points = []
+    for trk in root.findall(".//gpx:trk", ns):
+        for seg in trk.findall("gpx:trkseg", ns):
+            for pt in seg.findall("gpx:trkpt", ns):
+                lat = float(pt.get("lat"))
+                lon = float(pt.get("lon"))
+                ele = pt.findtext("gpx:ele", None, ns)
+                t = pt.findtext("gpx:time", None, ns)
+                points.append({
+                    "lat": lat, "lon": lon,
+                    "ele": float(ele) if ele else None,
+                    "time": t
+                })
+    return points
+
+async def query_overpass_road_surface(file_id: str) -> dict:
+    if file_id in _road_surface_cache:
+        return _road_surface_cache[file_id]
+
+    path = UPLOAD_DIR / f"{file_id}.gpx"
+    if not path.exists():
+        return {"error": "GPX file not found"}
+
+    raw = path.read_bytes()
+    all_points = parse_gpx_track_points(raw)
+    if not all_points:
+        return {"error": "No track points found"}
+
+    sampled = _sample_points(all_points, max_samples=40)
+
+    # Build Overpass QL query:
+    # For each sampled point, query nearby highways within ~20m
+    queries = []
+    for p in sampled:
+        lat, lon = p["lat"], p["lon"]
+        queries.append(
+            f'  node(around:20,{lat},{lon})["highway"];'
+            f'  way(around:20,{lat},{lon})["highway"];'
+        )
+
+    overpass_query = f"""
+[out:json][timeout:30];
+(
+{"".join(queries)}
+);
+out body;
+>;
+out skel qt;
+"""
+
+    try:
+        async with httpx.AsyncClient(timeout=35) as client:
+            resp = await client.post(
+                OVERPASS_URL,
+                data={"data": overpass_query},
+                headers={"User-Agent": "COROS-Chatbox/1.0"}
+            )
+        resp.raise_for_status()
+        result = resp.json()
+    except Exception as e:
+        return {"error": f"Overpass API error: {e}"}
+
+    # Deduplicate and summarize highway types
+    highway_counts: dict[str, int] = {}
+    surface_counts: dict[str, int] = {}
+    for el in result.get("elements", []):
+        tags = el.get("tags", {})
+        hw = tags.get("highway")
+        if hw:
+            highway_counts[hw] = highway_counts.get(hw, 0) + 1
+        sf = tags.get("surface")
+        if sf:
+            surface_counts[sf] = surface_counts.get(sf, 0) + 1
+
+    # Sort by frequency
+    sorted_highways = sorted(highway_counts.items(), key=lambda x: -x[1])
+    sorted_surfaces = sorted(surface_counts.items(), key=lambda x: -x[1])
+
+    total = sum(highway_counts.values()) or 1
+
+    highway_summary = []
+    for hw, cnt in sorted_highways:
+        pct = round(cnt / total * 100)
+        label = HIGHWAY_LABELS.get(hw, hw)
+        highway_summary.append(f"{label} ({hw}, {pct}%)")
+
+    surface_summary = []
+    for sf, cnt in sorted_surfaces:
+        pct = round(cnt / total * 100)
+        label = SURFACE_LABELS.get(sf, sf)
+        surface_summary.append(f"{label} ({sf}, {pct}%)")
+
+    road_data = {
+        "highway_types": sorted_highways,
+        "surface_types": sorted_surfaces,
+        "highway_summary": highway_summary,
+        "surface_summary": surface_summary,
+        "total_observations": total,
+        "sampled_points": len(sampled),
+    }
+    _road_surface_cache[file_id] = road_data
+    return road_data
+
 def extract_urls(text: str) -> list[str]:
     return list(set(URL_PATTERN.findall(text)))
 
@@ -994,6 +1141,15 @@ def chart_coros_summary():
     }
 
 
+@app.get("/api/road-surface/{file_id}")
+async def road_surface(file_id: str):
+    info = uploaded_files.get(file_id)
+    if not info or info.get("type") != "gpx":
+        raise HTTPException(status_code=404, detail="GPX file not found")
+    road_data = await query_overpass_road_surface(file_id)
+    return road_data
+
+
 @app.post("/api/chat", response_model=ChatResponse)
 async def chat(req: ChatRequest):
     if not DEEPSEEK_API_KEY:
@@ -1029,7 +1185,21 @@ async def chat(req: ChatRequest):
                     d = info["duration_sec"]
                     file_context += f"Duration: {int(d//3600)}h {int((d%3600)//60)}m, "
                 file_context += f"Elevation gain: {info['total_elevation_gain_m']}m, loss: {info['total_elevation_loss_m']}m\n"
-                file_context += f"Bounds: {info['bounds']}\n\n"
+                file_context += f"Bounds: {info['bounds']}\n"
+                # Fetch road surface from OSM
+                try:
+                    road_data = await query_overpass_road_surface(fid)
+                    if "error" not in road_data:
+                        hs = road_data.get("highway_summary", [])
+                        ss = road_data.get("surface_summary", [])
+                        if hs:
+                            file_context += f"Route road types: {', '.join(hs[:5])}\n"
+                        if ss:
+                            file_context += f"Surface types: {', '.join(ss[:5])}\n"
+                        file_context += f"Road surface analysis: sampled {road_data['sampled_points']} points across the route.\n"
+                except Exception as e:
+                    pass
+                file_context += "\n"
             elif info["type"] == "image":
                 file_context += f"\n[Uploaded Image: {info['filename']}]\n"
 
