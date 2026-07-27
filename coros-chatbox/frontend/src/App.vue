@@ -693,21 +693,31 @@ export default {
         }
       })
 
-      const mermaidDivs = document.querySelectorAll('.mermaid')
+      let mermaidDivs = document.querySelectorAll('.mermaid')
       if (mermaidDivs.length > 0) {
-        const svgs = document.querySelectorAll('.mermaid svg')
-        if (svgs.length > 0) {
-          svgs.forEach((svg, idx) => {
+        let svgs = document.querySelectorAll('.mermaid svg')
+        if (svgs.length === 0) {
+          console.warn('captureChartImages: no svg children found, forcing mermaid re-render')
+          const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+          await Promise.all(Array.from(mermaidDivs).map(async (el) => {
             try {
-              const s = new XMLSerializer().serializeToString(svg)
-              images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+              const code = el.textContent.trim()
+              const { svg } = await mermaid.render('mermaid-export-' + Math.random().toString(36).slice(2), code)
+              el.innerHTML = svg
             } catch (e) {
-              console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
+              el.innerHTML = `<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7">${esc(el.textContent)}</pre>`
             }
-          })
-        } else {
-          console.warn('captureChartImages: found ' + mermaidDivs.length + ' .mermaid divs but no svg children - mermaid may not have rendered yet')
+          }))
+          svgs = document.querySelectorAll('.mermaid svg')
         }
+        svgs.forEach((svg, idx) => {
+          try {
+            const s = new XMLSerializer().serializeToString(svg)
+            images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+          } catch (e) {
+            console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
+          }
+        })
       }
 
       images._byFileId = byFileId
