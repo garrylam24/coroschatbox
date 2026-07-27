@@ -78,15 +78,15 @@
               <div v-if="msg.file.chartReady" class="gpx-charts">
                 <div class="chart-box small" v-if="msg.file.hasEle" @click="expandCanvas($event, 'ele-' + msg.file.file_id)">
                   <h4>Elevation Profile <span class="expand-hint">🔍</span></h4>
-                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:300px;pointer-events:none"></canvas>
+                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:500px;pointer-events:none"></canvas>
                 </div>
                 <div class="chart-box small" v-if="msg.file.hasHr" @click="expandCanvas($event, 'hr-' + msg.file.file_id)">
                   <h4>Heart Rate <span class="expand-hint">🔍</span></h4>
-                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:300px;pointer-events:none"></canvas>
+                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:500px;pointer-events:none"></canvas>
                 </div>
                 <div class="chart-box small" v-if="msg.file.hasCad" @click="expandCanvas($event, 'cad-' + msg.file.file_id)">
                   <h4>Cadence <span class="expand-hint">🔍</span></h4>
-                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:300px;pointer-events:none"></canvas>
+                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:500px;pointer-events:none"></canvas>
                 </div>
               </div>
             </div>
