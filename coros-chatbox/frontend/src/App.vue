@@ -932,7 +932,7 @@ export default {
             let chartImgs = ''
             if (msg.file.chartReady && msg.file.file_id && byFileId[msg.file.file_id]) {
               byFileId[msg.file.file_id].forEach(ch => {
-                chartImgs += `<img src="${ch.dataUrl}" style="max-width:100%;border-radius:8px;margin:4px 0" />\n`
+                chartImgs += `<img src="${ch.dataUrl}" style="width:100%;height:auto;border-radius:8px;margin:4px 0" />\n`
               })
             }
             fileHtml = `<div style="background:${c.card};border:1px solid ${c.border};padding:10px 14px;border-radius:10px;margin:8px 0;font-size:13px;color:${c.muted}">
@@ -1011,7 +1011,7 @@ ${msgHtml}
         const idx = mermaidBlocks.length
         if (mermaidIdx < totalMermaid) {
           mermaidBlocks.push(`<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">
-            <img src="${charts['mermaid-' + mermaidIdx]}" style="max-width:100%" />
+            <img src="${charts['mermaid-' + mermaidIdx]}" style="width:100%;height:auto" />
           </div>`)
           mermaidIdx++
         } else {
