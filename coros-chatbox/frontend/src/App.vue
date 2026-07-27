@@ -675,23 +675,41 @@ export default {
       const images = {}
       const byFileId = {}
 
+      const totalCanvases = document.querySelectorAll('canvas').length
+      console.log('captureChartImages: found', totalCanvases, 'canvases in DOM')
+
+      await new Promise(r => setTimeout(r, 100))
+
+      for (const key in this.chartInstances) {
+        try {
+          this.chartInstances[key].resize()
+          this.chartInstances[key].draw()
+        } catch (_) {}
+      }
+
+      await new Promise(r => setTimeout(r, 100))
+
       document.querySelectorAll('canvas').forEach((c) => {
         try {
-          if (c.width > 0 && c.height > 0) {
-            const dataUrl = c.toDataURL('image/png')
-            const chartAttr = c.getAttribute('data-chart') || ''
-            const key = chartAttr || 'canvas-' + Math.random()
-            images[key] = dataUrl
-            if (chartAttr) {
-              const fid = chartAttr.replace(/^(ele|hr|cad)-/, '')
-              if (!byFileId[fid]) byFileId[fid] = []
-              byFileId[fid].push({ type: chartAttr.startsWith('ele') ? 'elevation' : chartAttr.startsWith('hr') ? 'heartrate' : 'cadence', dataUrl })
-            }
+          if (c.width === 0 || c.height === 0) {
+            c.width = c.parentElement ? c.parentElement.clientWidth || 400 : 400
+            c.height = Math.round(c.width / 3)
+          }
+          const dataUrl = c.toDataURL('image/png')
+          const chartAttr = c.getAttribute('data-chart') || ''
+          const key = chartAttr || 'canvas-' + Math.random()
+          images[key] = dataUrl
+          console.log('captureChartImages: captured canvas', key, c.width + 'x' + c.height)
+          if (chartAttr) {
+            const fid = chartAttr.replace(/^(ele|hr|cad)-/, '')
+            if (!byFileId[fid]) byFileId[fid] = []
+            byFileId[fid].push({ type: chartAttr.startsWith('ele') ? 'elevation' : chartAttr.startsWith('hr') ? 'heartrate' : 'cadence', dataUrl })
           }
         } catch (e) {
           console.warn('captureChartImages: canvas tainted', e)
         }
       })
+      console.log('captureChartImages: byFileId keys', Object.keys(byFileId))
 
       let mermaidDivs = document.querySelectorAll('.mermaid')
       if (mermaidDivs.length > 0) {
@@ -747,7 +765,7 @@ export default {
           this.$nextTick(() => this.renderCorosCharts())
         }
         await this.$nextTick()
-        await new Promise(r => setTimeout(r, 200))
+        await new Promise(r => setTimeout(r, 500))
       }
 
       const charts = this.exportIncludeCharts ? await this.captureChartImages() : {}
