@@ -1733,7 +1733,7 @@ header h1 {
 .lightbox-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.8);
+  background: #000;
   display: flex;
   align-items: center;
   justify-content: center;
