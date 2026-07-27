@@ -76,17 +76,17 @@
                 <span>{{ msg.file.summary }}</span>
               </div>
               <div v-if="msg.file.chartReady" class="gpx-charts">
-                <div class="chart-box small" v-if="msg.file.hasEle">
-                  <h4>Elevation Profile</h4>
-                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;cursor:pointer" @click="expandChart('canvas', $event.target)"></canvas>
+                <div class="chart-box small" v-if="msg.file.hasEle" @click="expandCanvas($event, 'ele-' + msg.file.file_id)">
+                  <h4>Elevation Profile <span class="expand-hint">🔍</span></h4>
+                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;pointer-events:none"></canvas>
                 </div>
-                <div class="chart-box small" v-if="msg.file.hasHr">
-                  <h4>Heart Rate</h4>
-                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;cursor:pointer" @click="expandChart('canvas', $event.target)"></canvas>
+                <div class="chart-box small" v-if="msg.file.hasHr" @click="expandCanvas($event, 'hr-' + msg.file.file_id)">
+                  <h4>Heart Rate <span class="expand-hint">🔍</span></h4>
+                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;pointer-events:none"></canvas>
                 </div>
-                <div class="chart-box small" v-if="msg.file.hasCad">
-                  <h4>Cadence</h4>
-                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;cursor:pointer" @click="expandChart('canvas', $event.target)"></canvas>
+                <div class="chart-box small" v-if="msg.file.hasCad" @click="expandCanvas($event, 'cad-' + msg.file.file_id)">
+                  <h4>Cadence <span class="expand-hint">🔍</span></h4>
+                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;pointer-events:none"></canvas>
                 </div>
               </div>
             </div>
@@ -664,28 +664,40 @@ export default {
       const mermaidEl = e.target.closest('.mermaid')
       if (mermaidEl) {
         const svg = mermaidEl.querySelector('svg')
-        if (svg) this.expandChart('mermaid', svg)
+        if (svg) this.expandChart('mermaid', svg, mermaidEl)
       }
     },
 
-    expandChart(type, el) {
-      this.lightboxZoom = 1
-      this.lightboxPanX = 0
-      this.lightboxPanY = 0
-      if (type === 'canvas') {
+    expandCanvas(e, chartAttr) {
+      const canvas = e.currentTarget.querySelector('canvas')
+      if (!canvas) return
+      try {
+        const dataUrl = canvas.toDataURL('image/png')
+        const title = e.currentTarget.querySelector('h4')?.textContent?.replace('🔍','').trim() || 'Chart'
+        this.showLightbox(dataUrl, title)
+      } catch (ex) {
+        console.warn('expandCanvas failed', ex)
+      }
+    },
+
+    expandChart(type, el, parentEl) {
+      if (type === 'mermaid') {
         try {
-          const dataUrl = el.toDataURL('image/png')
-          const title = el.closest('.chart-box')?.querySelector('h4')?.textContent || 'Chart'
-          this.chartLightbox = { src: dataUrl, title, type: 'image' }
+          const s = new XMLSerializer().serializeToString(el)
+          const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+          const title = parentEl?.getAttribute('data-title') || 'Mermaid Chart'
+          this.showLightbox(dataUrl, title)
         } catch (e) {
           console.warn('expandChart failed', e)
         }
-      } else if (type === 'mermaid') {
-        const s = new XMLSerializer().serializeToString(el)
-        const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
-        const title = 'Mermaid Chart'
-        this.chartLightbox = { src: dataUrl, title, type: 'image' }
       }
+    },
+
+    showLightbox(src, title) {
+      this.lightboxZoom = 1
+      this.lightboxPanX = 0
+      this.lightboxPanY = 0
+      this.chartLightbox = { src, title }
     },
 
     lightboxZoomIn() { this.lightboxZoom = Math.min(this.lightboxZoom + 0.25, 5) },
@@ -769,7 +781,7 @@ export default {
       })
       // Restore mermaid blocks
       mermaidBlocks.forEach((code, i) => {
-        html = html.replace(`~~~MERMAID${i}~~~`, `<div class="mermaid">${code}</div>`)
+        html = html.replace(`~~~MERMAID${i}~~~`, `<div class="mermaid" data-title="Mermaid Chart" style="cursor:pointer">${code}</div>`)
       })
       html = '<p>' + html + '</p>'
       return html
@@ -1771,4 +1783,11 @@ header h1 {
   align-items: center;
   justify-content: center;
 }
+.expand-hint {
+  font-size: 11px;
+  opacity: 0.6;
+  cursor: pointer;
+}
+.chart-box.small { cursor: pointer; }
+.chart-box.small canvas { pointer-events: none; }
 </style>
