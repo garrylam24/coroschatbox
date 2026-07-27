@@ -175,7 +175,7 @@
       <div class="lightbox-content">
         <button class="lightbox-close" @click="chartLightbox = null">&times;</button>
         <h3>{{ chartLightbox.title }}</h3>
-        <img :src="chartLightbox.src" style="max-width:90vw;max-height:85vh;border-radius:8px" />
+        <img :src="chartLightbox.src" style="width:80vw;border-radius:8px" />
       </div>
     </div>
 
