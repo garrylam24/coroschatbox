@@ -8,7 +8,7 @@
 [![Vite](https://img.shields.io/badge/Vite-5-646cff?logo=vite&style=flat-square)](https://vitejs.dev)
 [![Chart.js](https://img.shields.io/badge/Chart.js-4.5-ff6384?logo=chartdotjs&style=flat-square)](https://www.chartjs.org)
 [![License](https://img.shields.io/badge/License-MIT-3da639?style=flat-square)](LICENSE)
-[![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--07--10-0891b2?style=flat-square)](https://github.com/garrylam24/coroschatbox)
+[![Last Updated](https://img.shields.io/badge/Last%20Updated-2026--07--27-0891b2?style=flat-square)](https://github.com/garrylam24/coroschatbox)
 
 </div>
 
@@ -35,6 +35,7 @@ COROS Chatbox 是一個全端應用程式，連接 COROS 運動手錶的訓練�
 - 📄 **匯出報表** — 選取聊天記錄中的訊息，匯出為 HTML 或 PDF（支援深色/淺色/橙色主題）
 - 🗑️ **刪除訊息** — 勾選訊息後可批次刪除或匯出
 - 🌤️ **天文台天氣整合** — 自動從香港天文台 Open Data API 獲取即時天氣（溫度、濕度、雨量、UV），AI 教練分析訓練時考慮天氣因素，解釋「今日 33°C 濕度高」對跑力的影響
+- 🛣️ **OSM 路面分析** — 上傳 GPX 後自動透過 Overpass API 查詢 OpenStreetMap，分析途經道路類型（高速公路、行人路、小徑）和路面材質（瀝青、碎石、泥地），AI 教練可根據路面解讀配速與心率表現
 - 🔥 **Grill Me 模式** — 專屬 accountability 教練，用羞辱式激勵督促你訓練
 - 🌏 **預設繁體中文** — LLM 提示詞強制使用繁體中文回覆
 
@@ -137,6 +138,7 @@ DEEPSEEK_API_KEY=sk-your-key-here
 | `GET` | `/api/chart/tcx/{file_id}` | 計算 TCX 時間序列數據 |
 | `GET` | `/api/chart/fit/{file_id}` | 計算 FIT 時間序列數據 |
 | `GET` | `/api/chart/coros-summary` | 彙總儀表板：月跑量、心率趨勢、訓練負荷 |
+| `GET` | `/api/road-surface/{file_id}` | 分析 GPX 路線的道路類型與路面材質（Overpass API / OSM） |
 | `POST` | `/api/chat` | 發送聊天訊息（支援檔案 ID、session ID、模式選擇） |
 
 ## 自訂 AI 教練風格
@@ -231,6 +233,7 @@ project3/
 | 「我現在的 VO2max 同體能水平係幾多？」 | 回傳 COROS 體能評估數據 |
 | 「今日天氣咁熱，分析吓我對上三次跑嘅表現」 | 自動拉天文台天氣數據，比對溫度/濕度對配速和心率的影響 |
 | 上傳 GPX 檔案後問：「繪製我的心率和海拔圖表」 | 自動渲染 Chart.js 圖表 |
+| 上傳 GPX 後問：「這條路主要係咩路面？」 | 自動透過 OSM 分析道路類型和路面材質分佈 |
 
 ## 授權條款
 
