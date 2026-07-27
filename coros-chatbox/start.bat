@@ -2,6 +2,37 @@
 echo Starting COROS Chatbox...
 echo.
 
+rem ── Check .env ──────────────────────────────────────────────
+if not exist "%~dp0..\.env" (
+    echo [WARNING] .env not found in project root!
+    echo.
+    echo Creating template .env for you...
+    (
+        echo # COROS account ^(required^)
+        echo COROS_EMAIL=your.email@example.com
+        echo COROS_PASSWORD=your_password
+        echo COROS_REGION=asia
+        echo.
+        echo # LLM API ^(required^)
+        echo DEEPSEEK_API_KEY=sk-your-key-here
+        echo.
+        echo # AI coach personality ^(optional, delete ^# to uncomment^)
+        echo # COACH_PERSONALITY=your preferred coach style
+        echo # DATA_PERSONALITY=your preferred data style
+    ) > "%~dp0..\.env"
+    echo.
+    echo ================================================================
+    echo  [33mIMPORTANT[0m: Please edit the .env file in the project root
+    echo  and fill in your COROS email/password and DeepSeek API key.
+    echo  Then run this batch file again.
+    echo ================================================================
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] .env found.
+echo.
+
 echo Step 1: Installing backend dependencies...
 cd /d "%~dp0backend"
 pip install -r requirements.txt
