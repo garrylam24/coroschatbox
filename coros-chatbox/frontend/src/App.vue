@@ -842,17 +842,20 @@ ${chartSections ? '<div class="charts-section"><h3>📊 Mermaid Charts</h3>' + c
       const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
       const mermaidKeys = Object.keys(charts).filter(k => k.startsWith('mermaid-'))
-
+      const mermaidBlocks = []
       let mermaidIdx = 0
       let html = text.replace(/```mermaid\n?([\s\S]*?)```/g, (match, code) => {
         const imgSrc = mermaidKeys[mermaidIdx] ? charts[mermaidKeys[mermaidIdx]] : null
         mermaidIdx++
+        const idx = mermaidBlocks.length
         if (imgSrc) {
-          return `<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">
+          mermaidBlocks.push(`<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">
             <img src="${imgSrc}" style="max-width:100%" />
-          </div>`
+          </div>`)
+        } else {
+          mermaidBlocks.push(`<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7;overflow-x:auto">${esc(code)}</pre>`)
         }
-        return `<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7;overflow-x:auto">${esc(code)}</pre>`
+        return `~~~MERMAID${idx}~~~`
       })
 
       const tableBlocks = []
@@ -896,6 +899,9 @@ ${chartSections ? '<div class="charts-section"><h3>📊 Mermaid Charts</h3>' + c
 
       tableBlocks.forEach((table, i) => {
         html = html.replace(`~~~TABLE${i}~~~`, table)
+      })
+      mermaidBlocks.forEach((block, i) => {
+        html = html.replace(`~~~MERMAID${i}~~~`, block)
       })
 
       html = '<p>' + html + '</p>'
