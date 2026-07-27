@@ -1041,9 +1041,10 @@ ${msgHtml}
           if (!code) return
           try {
             const { svg } = await mermaid.render('m-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), code)
-            el.innerHTML = svg
+            const clean = svg.replace(/NaN/g, '0')
+            el.innerHTML = clean
           } catch (e) {
-            el.innerHTML = `<div style="color:#a1a1aa;font-size:12px;margin-bottom:4px">⚠️ Mermaid render error — chart code:</div><pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;line-height:1.5;color:#e4e4e7;overflow-x:auto;white-space:pre-wrap">${esc(code)}</pre>`
+            el.innerHTML = `<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#a1a1aa;overflow-x:auto">${esc(code)}</pre>`
           }
         })
       })
