@@ -266,9 +266,10 @@ export default {
   computed: {
     lightboxImgStyle() {
       return {
-        maxHeight: '80vh',
-        width: 'auto',
+        maxWidth: '100%',
+        maxHeight: '100%',
         borderRadius: '8px',
+        objectFit: 'contain',
         transform: `translate(${this.lightboxPanX}px, ${this.lightboxPanY}px) scale(${this.lightboxZoom})`,
         cursor: this.lightboxDragging ? 'grabbing' : 'grab',
         transition: this.lightboxDragging ? 'none' : 'transform 0.15s ease'
@@ -1782,11 +1783,13 @@ header h1 {
 }
 .lightbox-controls button:hover { background: #3f3f46; }
 .lightbox-img-wrap {
-  overflow: hidden;
+  overflow: auto;
   border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
+  max-width: 90vw;
+  max-height: 80vh;
 }
 .expand-hint {
   font-size: 11px;
