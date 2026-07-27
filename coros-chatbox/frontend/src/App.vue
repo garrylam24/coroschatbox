@@ -675,67 +675,43 @@ export default {
       const images = {}
       const byFileId = {}
 
-      const totalCanvases = document.querySelectorAll('canvas').length
-      console.log('captureChartImages: found', totalCanvases, 'canvases in DOM')
-
-      await new Promise(r => setTimeout(r, 100))
-
       for (const key in this.chartInstances) {
         try {
-          this.chartInstances[key].resize()
-          this.chartInstances[key].draw()
-        } catch (_) {}
-      }
-
-      await new Promise(r => setTimeout(r, 100))
-
-      document.querySelectorAll('canvas').forEach((c) => {
-        try {
-          if (c.width === 0 || c.height === 0) {
-            c.width = c.parentElement ? c.parentElement.clientWidth || 400 : 400
-            c.height = Math.round(c.width / 3)
-          }
-          const dataUrl = c.toDataURL('image/png')
-          const chartAttr = c.getAttribute('data-chart') || ''
-          const key = chartAttr || 'canvas-' + Math.random()
+          const chart = this.chartInstances[key]
+          chart.resize()
+          chart.draw()
+          const fileId = key.replace(/-(ele|hr|cad)$/, '')
+          const type = key.includes('-ele') ? 'elevation' : key.includes('-hr') ? 'heartrate' : key.includes('-cad') ? 'cadence' : 'chart'
+          const dataUrl = chart.canvas.toDataURL('image/png')
           images[key] = dataUrl
-          console.log('captureChartImages: captured canvas', key, c.width + 'x' + c.height)
-          if (chartAttr) {
-            const fid = chartAttr.replace(/^(ele|hr|cad)-/, '')
-            if (!byFileId[fid]) byFileId[fid] = []
-            byFileId[fid].push({ type: chartAttr.startsWith('ele') ? 'elevation' : chartAttr.startsWith('hr') ? 'heartrate' : 'cadence', dataUrl })
+          if (key.includes('-ele') || key.includes('-hr') || key.includes('-cad')) {
+            if (!byFileId[fileId]) byFileId[fileId] = []
+            byFileId[fileId].push({ type, dataUrl })
           }
         } catch (e) {
-          console.warn('captureChartImages: canvas tainted', e)
+          console.warn('captureChartImages: chart instance', key, 'failed', e)
         }
-      })
-      console.log('captureChartImages: byFileId keys', Object.keys(byFileId))
+      }
 
-      let mermaidDivs = document.querySelectorAll('.mermaid')
+      const mermaidDivs = document.querySelectorAll('.mermaid')
       if (mermaidDivs.length > 0) {
-        let svgs = document.querySelectorAll('.mermaid svg')
-        if (svgs.length === 0) {
-          console.warn('captureChartImages: no svg children found, forcing mermaid re-render')
-          const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-          await Promise.all(Array.from(mermaidDivs).map(async (el) => {
-            try {
-              const code = el.textContent.trim()
-              const { svg } = await mermaid.render('mermaid-export-' + Math.random().toString(36).slice(2), code)
-              el.innerHTML = svg
-            } catch (e) {
-              el.innerHTML = `<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7">${esc(el.textContent)}</pre>`
-            }
-          }))
-          svgs = document.querySelectorAll('.mermaid svg')
-        }
-        svgs.forEach((svg, idx) => {
+        const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+        await Promise.all(Array.from(mermaidDivs).map(async (el, idx) => {
           try {
-            const s = new XMLSerializer().serializeToString(svg)
-            images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+            const svgEl = el.querySelector('svg')
+            if (svgEl) {
+              const s = new XMLSerializer().serializeToString(svgEl)
+              images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+            } else {
+              const code = el.textContent.trim()
+              const { svg } = await mermaid.render('mermaid-export-' + idx, code)
+              el.innerHTML = svg
+              images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
+            }
           } catch (e) {
             console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
           }
-        })
+        }))
       }
 
       images._byFileId = byFileId
@@ -765,7 +741,6 @@ export default {
           this.$nextTick(() => this.renderCorosCharts())
         }
         await this.$nextTick()
-        await new Promise(r => setTimeout(r, 500))
       }
 
       const charts = this.exportIncludeCharts ? await this.captureChartImages() : {}
