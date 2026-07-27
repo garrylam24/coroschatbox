@@ -266,7 +266,7 @@ export default {
   computed: {
     lightboxImgStyle() {
       return {
-        maxHeight: '50vh',
+        maxHeight: '80vh',
         width: 'auto',
         borderRadius: '8px',
         transform: `translate(${this.lightboxPanX}px, ${this.lightboxPanY}px) scale(${this.lightboxZoom})`,
