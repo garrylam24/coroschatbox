@@ -78,15 +78,15 @@
               <div v-if="msg.file.chartReady" class="gpx-charts">
                 <div class="chart-box small" v-if="msg.file.hasEle">
                   <h4>Elevation Profile</h4>
-                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px"></canvas>
+                  <canvas :data-chart="'ele-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;cursor:pointer" @click="expandChart('canvas', $event.target)"></canvas>
                 </div>
                 <div class="chart-box small" v-if="msg.file.hasHr">
                   <h4>Heart Rate</h4>
-                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px"></canvas>
+                  <canvas :data-chart="'hr-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;cursor:pointer" @click="expandChart('canvas', $event.target)"></canvas>
                 </div>
                 <div class="chart-box small" v-if="msg.file.hasCad">
                   <h4>Cadence</h4>
-                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px"></canvas>
+                  <canvas :data-chart="'cad-' + msg.file.file_id" style="width:100%;height:auto;max-height:150px;cursor:pointer" @click="expandChart('canvas', $event.target)"></canvas>
                 </div>
               </div>
             </div>
@@ -170,6 +170,15 @@
       </div>
     </div>
 
+    <!-- Chart Lightbox -->
+    <div v-if="chartLightbox" class="lightbox-overlay" @click.self="chartLightbox = null" @keydown.esc="chartLightbox = null">
+      <div class="lightbox-content">
+        <button class="lightbox-close" @click="chartLightbox = null">&times;</button>
+        <h3>{{ chartLightbox.title }}</h3>
+        <img :src="chartLightbox.src" style="max-width:90vw;max-height:85vh;border-radius:8px" />
+      </div>
+    </div>
+
     <div class="input-area">
       <input type="file" ref="fileInput" accept=".gpx,.tcx,.fit,.jpg,.jpeg,.png,.webp" @change="onFileSelect" hidden />
       <button class="upload-btn" @click="$refs.fileInput.click()" :disabled="loading || uploading" title="Upload GPX/TCX/FIT/photo">
@@ -220,6 +229,7 @@ export default {
       exportTheme: 'dark',
       exportTitle: 'COROS Training Report',
       exportIncludeCharts: true,
+      chartLightbox: null,
       examples: [
         'How was my running volume this year?',
         'What is my current VO2max and fitness level?',
@@ -246,6 +256,10 @@ export default {
       this.renderMermaidDiagrams()
       this.reloadFileCharts()
     })
+    document.addEventListener('click', this._chartClickDelegate)
+  },
+  beforeDestroy() {
+    document.removeEventListener('click', this._chartClickDelegate)
   },
   watch: {
     messages: {
@@ -610,6 +624,31 @@ export default {
 
     openImage(e) {
       window.open(e.target.src, '_blank')
+    },
+
+    _chartClickDelegate(e) {
+      const mermaidEl = e.target.closest('.mermaid')
+      if (mermaidEl) {
+        const svg = mermaidEl.querySelector('svg')
+        if (svg) this.expandChart('mermaid', svg)
+      }
+    },
+
+    expandChart(type, el) {
+      if (type === 'canvas') {
+        try {
+          const dataUrl = el.toDataURL('image/png')
+          const title = el.closest('.chart-box')?.querySelector('h4')?.textContent || 'Chart'
+          this.chartLightbox = { src: dataUrl, title, type: 'image' }
+        } catch (e) {
+          console.warn('expandChart failed', e)
+        }
+      } else if (type === 'mermaid') {
+        const s = new XMLSerializer().serializeToString(el)
+        const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+        const title = 'Mermaid Chart'
+        this.chartLightbox = { src: dataUrl, title, type: 'image' }
+      }
     },
 
     renderMarkdown(text) {
@@ -1611,4 +1650,39 @@ header h1 {
   color: #a1a1aa;
   margin-bottom: 6px;
 }
+
+.lightbox-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 24px;
+}
+.lightbox-content {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+.lightbox-content h3 {
+  color: #e4e4e7;
+  font-size: 16px;
+}
+.lightbox-close {
+  position: absolute;
+  top: -36px;
+  right: 0;
+  background: none;
+  border: none;
+  color: #a1a1aa;
+  font-size: 28px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+}
+.lightbox-close:hover { color: #e4e4e7; }
 </style>
