@@ -1040,15 +1040,7 @@ ${msgHtml}
           const code = el.textContent.trim()
           if (!code) return
           mermaid.run({ nodes: [el] }).catch(() => {
-            try {
-              mermaid.render('m-fallback-' + Date.now(), code).then(({ svg }) => {
-                el.innerHTML = svg
-              }).catch(() => {
-                el.innerHTML = `<div style="color:#a1a1aa;font-size:12px;margin-bottom:4px">⚠️ Chart render failed — raw data:</div><pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;text-align:left;overflow-x:auto;font-size:12px;line-height:1.5;color:#e4e4e7;white-space:pre-wrap">${esc(code)}</pre>`
-              })
-            } catch (_) {
-              el.innerHTML = `<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7">${esc(code)}</pre>`
-            }
+            el.innerHTML = `<div style="color:#a1a1aa;font-size:12px;margin-bottom:4px">⚠️ Mermaid render error — chart code:</div><pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;line-height:1.5;color:#e4e4e7;overflow-x:auto;white-space:pre-wrap">${esc(code)}</pre>`
           })
         })
       })
