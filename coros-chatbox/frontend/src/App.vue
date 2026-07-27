@@ -671,19 +671,38 @@ export default {
       }
     },
 
-    captureChartImages() {
+    async captureChartImages() {
       const images = {}
-      const allCanvases = document.querySelectorAll('canvas')
-      allCanvases.forEach((c, idx) => {
+      const byFileId = {}
+
+      document.querySelectorAll('canvas').forEach((c) => {
         try {
-          images['chart-' + idx] = c.toDataURL('image/png')
-        } catch (e) { /* cross-origin etc */ }
+          if (c.width > 0 && c.height > 0) {
+            const dataUrl = c.toDataURL('image/png')
+            const chartAttr = c.getAttribute('data-chart') || ''
+            const key = chartAttr || 'canvas-' + Math.random()
+            images[key] = dataUrl
+            if (chartAttr) {
+              const fid = chartAttr.replace(/^(ele|hr|cad)-/, '')
+              if (!byFileId[fid]) byFileId[fid] = []
+              byFileId[fid].push({ type: chartAttr.startsWith('ele') ? 'elevation' : chartAttr.startsWith('hr') ? 'heartrate' : 'cadence', dataUrl })
+            }
+          }
+        } catch (e) {
+          console.warn('captureChartImages: canvas tainted', e)
+        }
       })
-      const mermaidSvgs = document.querySelectorAll('.mermaid svg')
-      mermaidSvgs.forEach((svg, idx) => {
-        const s = new XMLSerializer().serializeToString(svg)
-        images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+
+      document.querySelectorAll('.mermaid svg').forEach((svg, idx) => {
+        try {
+          const s = new XMLSerializer().serializeToString(svg)
+          images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+        } catch (e) {
+          console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
+        }
       })
+
+      images._byFileId = byFileId
       return images
     },
 
@@ -692,9 +711,8 @@ export default {
       return this.selectedMessages.map(i => this.messages[i])
     },
 
-    doExport() {
+    async doExport() {
       const msgs = this.getExportMessages()
-      const charts = this.exportIncludeCharts ? this.captureChartImages() : {}
       const theme = this.exportTheme
       const now = new Date().toLocaleString('zh-HK', { timeZone: 'Asia/Hong_Kong' })
 
@@ -705,23 +723,27 @@ export default {
       }
       const c = themeColors[theme] || themeColors.dark
 
-      let chartStyles = ''
-      let chartSections = ''
-      let chartIdx = 0
-      for (const key in charts) {
-        if (key.startsWith('chart-')) {
-          chartStyles += `.export-chart-${chartIdx} { max-width: 100%; border-radius: 8px; margin: 8px 0; }\n`
-          chartSections += `<img src="${charts[key]}" class="export-chart-${chartIdx}" style="max-width:100%;border-radius:8px;margin:8px 0" />\n`
-          chartIdx++
+      if (this.exportIncludeCharts) {
+        const hadCorosCharts = this.showCorosCharts
+        if (!this.showCorosCharts && msgs.some(m => m.role === 'assistant' && m.content && m.content.includes('```mermaid'))) {
+          this.showCorosCharts = true
+          if (this.monthlyVolume.length === 0) {
+            try {
+              const res = await fetch('http://localhost:8000/api/chart/coros-summary')
+              const data = await res.json()
+              this.monthlyVolume = data.monthly_volume || []
+              this.heartRateData = data.heart_rate || []
+              this.trainingLoadData = data.training_load || []
+            } catch (_) {}
+          }
+          this.$nextTick(() => this.renderCorosCharts())
         }
+        await this.$nextTick()
+        await new Promise(r => setTimeout(r, 200))
       }
-      for (const key in charts) {
-        if (key.startsWith('mermaid-')) {
-          chartSections += `<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">\n`
-          chartSections += `<img src="${charts[key]}" style="max-width:100%" />\n`
-          chartSections += `</div>\n`
-        }
-      }
+
+      const charts = this.exportIncludeCharts ? await this.captureChartImages() : {}
+      const byFileId = (charts && charts._byFileId) || {}
 
       this._exportAccent = c.accent
       let msgHtml = ''
@@ -729,19 +751,25 @@ export default {
       sorted.forEach((idx) => {
         const msg = this.messages[idx]
         const isUser = msg.role === 'user'
-        const align = isUser ? 'right' : 'left'
         const bubbleBg = isUser ? c.userBubble : c.aiBubble
         const bubbleColor = isUser ? c.userText : c.text
         const avatar = isUser ? '👤' : '🤖'
 
-        let content = this.renderExportContent(msg.content || '')
+        let content = this.renderExportContent(msg.content || '', charts)
         let fileHtml = ''
         if (msg.file) {
           if (msg.file.type === 'image') {
             fileHtml = `<div style="margin:8px 0"><strong>${msg.file.filename}</strong></div>`
           } else {
+            let chartImgs = ''
+            if (msg.file.chartReady && msg.file.file_id && byFileId[msg.file.file_id]) {
+              byFileId[msg.file.file_id].forEach(ch => {
+                chartImgs += `<img src="${ch.dataUrl}" style="max-width:100%;border-radius:8px;margin:4px 0" />\n`
+              })
+            }
             fileHtml = `<div style="background:${c.card};border:1px solid ${c.border};padding:10px 14px;border-radius:10px;margin:8px 0;font-size:13px;color:${c.muted}">
               🗺️ <strong>${msg.file.filename}</strong> — ${msg.file.summary || ''}
+              ${chartImgs ? '<div style="margin-top:8px">' + chartImgs + '</div>' : ''}
             </div>`
           }
         }
@@ -756,6 +784,16 @@ export default {
           </div>`
       })
 
+      delete charts._byFileId
+      let chartSections = ''
+      for (const key in charts) {
+        if (key.startsWith('mermaid-')) {
+          chartSections += `<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">\n`
+          chartSections += `<img src="${charts[key]}" style="max-width:100%" />\n`
+          chartSections += `</div>\n`
+        }
+      }
+
       const html = `<!DOCTYPE html>
 <html lang="zh-HK">
 <head>
@@ -769,7 +807,6 @@ h1 { font-size:22px; background:linear-gradient(135deg,${c.accent},#ef4444); -we
 .sub { color:${c.muted}; font-size:13px; margin-bottom:24px; padding-bottom:12px; border-bottom:1px solid ${c.border}; }
 .charts-section { margin: 16px 0; }
 .charts-section h3 { color:${c.accent}; font-size:14px; margin-bottom:8px; }
-${chartStyles}
 @media print { body { padding:16px; } }
 </style>
 </head>
@@ -777,10 +814,7 @@ ${chartStyles}
 <h1>${this.exportTitle}</h1>
 <div class="sub">Generated ${now} | ${sorted.length} messages</div>
 ${msgHtml}
-<div class="charts-section">
-<h3>📊 Charts</h3>
-${chartSections}
-</div>
+${chartSections ? '<div class="charts-section"><h3>📊 Mermaid Charts</h3>' + chartSections + '</div>' : ''}
 </body>
 </html>`
 
@@ -803,19 +837,33 @@ ${chartSections}
       this.showExportDialog = false
     },
 
-    renderExportContent(text) {
+    renderExportContent(text, charts = {}) {
       if (!text) return ''
       const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      // Strip mermaid blocks (already captured as images)
-      let html = text.replace(/```mermaid\n?[\s\S]*?```/g, '')
-      // Convert tables
+
+      const mermaidKeys = Object.keys(charts).filter(k => k.startsWith('mermaid-'))
+
+      let mermaidIdx = 0
+      let html = text.replace(/```mermaid\n?([\s\S]*?)```/g, (match, code) => {
+        const imgSrc = mermaidKeys[mermaidIdx] ? charts[mermaidKeys[mermaidIdx]] : null
+        mermaidIdx++
+        if (imgSrc) {
+          return `<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">
+            <img src="${imgSrc}" style="max-width:100%" />
+          </div>`
+        }
+        return `<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7;overflow-x:auto">${esc(code)}</pre>`
+      })
+
+      const tableBlocks = []
       html = html.replace(/^\|.+\n\|[-:| ]+\|\n(?:\|.+\n?)+/gm, (match) => {
+        const idx = tableBlocks.length
         const lines = match.trimEnd().split('\n')
         const headerCells = lines[0].split('|').filter(c => c.trim()).map(c => esc(c.trim()))
         const dataLines = lines.slice(2).filter(l => l.trim().length > 0)
-        let table = '<table class="chat-table">'
+        let table = '<table style="border-collapse:collapse;width:100%;margin:8px 0;font-size:13px">'
         table += '<thead><tr>'
-        headerCells.forEach(h => { table += `<th>${h}</th>` })
+        headerCells.forEach(h => { table += `<th style="border:1px solid #27272a;padding:6px 10px;text-align:left;background:#18181b">${h}</th>` })
         table += '</tr></thead>'
         if (dataLines.length > 0) {
           table += '<tbody>'
@@ -823,15 +871,17 @@ ${chartSections}
             const cells = row.split('|').filter(c => c.trim()).map(c => esc(c.trim()))
             if (cells.length) {
               table += '<tr>'
-              cells.forEach(c => { table += `<td>${c}</td>` })
+              cells.forEach(c => { table += `<td style="border:1px solid #27272a;padding:6px 10px">${c}</td>` })
               table += '</tr>'
             }
           })
           table += '</tbody>'
         }
         table += '</table>'
-        return table
+        tableBlocks.push(table)
+        return `~~~TABLE${idx}~~~`
       })
+
       html = esc(html)
         .replace(/### (.+)/g, '<h3>$1</h3>')
         .replace(/## (.+)/g, '<h2>$1</h2>')
@@ -843,6 +893,11 @@ ${chartSections}
         .replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>')
         .replace(/\n/g, '<br>')
         .replace(/<br><br>/g, '</p><p>')
+
+      tableBlocks.forEach((table, i) => {
+        html = html.replace(`~~~TABLE${i}~~~`, table)
+      })
+
       html = '<p>' + html + '</p>'
       return html
     },
