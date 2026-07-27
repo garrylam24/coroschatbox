@@ -185,10 +185,10 @@
           @mousemove="lightboxDragMove"
           @mouseup="lightboxDragEnd"
           @mouseleave="lightboxDragEnd"
-          @wheel.prevent="lightboxWheel">
-          <img :src="chartLightbox.src"
-            ref="lightboxImg"
-            :style="lightboxImgStyle" />
+          @wheel.prevent="lightboxWheel"
+          ref="lightboxWrapper">
+          <div v-if="chartLightbox.isSvg" ref="lightboxSvgContainer" style="display:flex;align-items:center;justify-content:center;width:85vw;height:75vh;overflow:hidden;"></div>
+          <img v-else :src="chartLightbox.src" ref="lightboxImg" :style="lightboxImgStyle" />
         </div>
       </div>
     </div>
@@ -274,7 +274,7 @@ export default {
         cursor: this.lightboxDragging ? 'grabbing' : 'grab',
         transition: this.lightboxDragging ? 'none' : 'transform 0.15s ease'
       }
-    }
+    },
   },
   mounted() {
     const saved = localStorage.getItem('coros_messages')
@@ -407,6 +407,7 @@ export default {
 
     renderFileCharts(fileId, data, hasEle, hasHr, hasCad) {
       const distKm = data.distances_m ? data.distances_m.map(d => (d / 1000).toFixed(2)) : []
+      console.log('renderFileCharts', fileId, 'hasEle:', hasEle, 'hasHr:', hasHr, 'hasCad:', hasCad, 'distKm.length:', distKm.length)
 
       this.destroyChart(fileId + '-ele')
       this.destroyChart(fileId + '-hr')
@@ -418,13 +419,16 @@ export default {
         const canvas = cvs('ele-' + fileId)
         if (!canvas) { console.warn('ele canvas not found'); return }
         const valid = data.elevations_m.map((e, i) => ({ d: distKm[i], e })).filter(p => p.e !== null && p.d !== undefined)
-        if (valid.length < 2) return
+        if (valid.length < 2) { console.warn('ele <2 valid points'); return }
+        console.log('ele canvas found, dimensions before Chart:', canvas.offsetWidth, canvas.offsetHeight)
         const ctx = canvas.getContext('2d')
-        this.chartInstances[fileId + '-ele'] = new Chart(ctx, {
+        const chart = new Chart(ctx, {
           type: 'line',
           data: { labels: valid.map(p => p.d), datasets: [{ label: 'Elevation (m)', data: valid.map(p => p.e), borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,0.1)', fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2 }] },
           options: { responsive: true, maintainAspectRatio: true, aspectRatio: 3, resizeDelay: 100, plugins: { legend: { display: false } }, scales: { x: { title: { display: true, text: 'km', color: '#a1a1aa' }, ticks: { color: '#71717a' }, grid: { color: '#27272a' } }, y: { title: { display: true, text: 'm', color: '#a1a1aa' }, ticks: { color: '#71717a' }, grid: { color: '#27272a' } } } }
         })
+        this.chartInstances[fileId + '-ele'] = chart
+        console.log('ele chart created, dims:', chart.canvas.offsetWidth, chart.canvas.offsetHeight, 'canvas attr:', chart.canvas.width, chart.canvas.height)
       }
 
       if (hasHr) {
@@ -665,7 +669,7 @@ export default {
       const mermaidEl = e.target.closest('.mermaid')
       if (mermaidEl) {
         const svg = mermaidEl.querySelector('svg')
-        if (svg) this.expandChart('mermaid', svg, mermaidEl)
+        if (svg) { console.log('mermaid click detected'); this.expandChart('mermaid', svg, mermaidEl) }
       }
     },
 
@@ -685,29 +689,64 @@ export default {
       if (type === 'mermaid') {
         try {
           const s = new XMLSerializer().serializeToString(el)
-          const dataUrl = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+          console.log('mermaid svg first 300 chars:', s.substring(0, 300))
           const title = parentEl?.getAttribute('data-title') || 'Mermaid Chart'
-          this.showLightbox(dataUrl, title)
+          this.showLightbox(s, title, true)
         } catch (e) {
           console.warn('expandChart failed', e)
         }
       }
     },
 
-    showLightbox(src, title) {
+    showLightbox(src, title, isSvg) {
       this.lightboxZoom = 1
       this.lightboxPanX = 0
       this.lightboxPanY = 0
-      this.chartLightbox = { src, title }
+      this.chartLightbox = { src, title, isSvg: !!isSvg }
+      if (isSvg) {
+        this.$nextTick(() => this._renderLightboxSvg())
+      }
     },
 
-    lightboxZoomIn() { this.lightboxZoom = Math.min(this.lightboxZoom + 0.25, 5) },
-    lightboxZoomOut() { this.lightboxZoom = Math.max(this.lightboxZoom - 0.25, 0.25) },
-    lightboxReset() { this.lightboxZoom = 1; this.lightboxPanX = 0; this.lightboxPanY = 0 },
+    _renderLightboxSvg() {
+      const el = this.$refs.lightboxSvgContainer
+      console.log('_renderLightboxSvg el:', !!el, 'src len:', this.chartLightbox?.src?.length)
+      if (!el) return
+      el.innerHTML = ''
+      try {
+        const parser = new DOMParser()
+        const doc = parser.parseFromString(this.chartLightbox.src, 'image/svg+xml')
+        const svgEl = doc.documentElement
+        console.log('svgEl parsed:', svgEl?.tagName, 'xmlns:', svgEl?.getAttribute('xmlns'))
+        svgEl.dataset.baseStyle = 'max-width:100%;max-height:100%'
+        this._lightboxSvgEl = svgEl
+        this._updateSvgTransform()
+        el.appendChild(svgEl)
+        console.log('svg appended, child count:', el.childNodes.length)
+      } catch (e) {
+        console.warn('lightbox svg parse error', e)
+      }
+    },
+
+    _updateSvgTransform() {
+      if (!this._lightboxSvgEl) return
+      const svg = this._lightboxSvgEl
+      const baseStyle = svg.dataset.baseStyle || 'max-width:100%;max-height:100%'
+      svg.setAttribute('style',
+        baseStyle + ';pointer-events:auto;' +
+        'transform:translate(' + this.lightboxPanX + 'px,' + this.lightboxPanY + 'px) scale(' + this.lightboxZoom + ');' +
+        'transition:transform 0.15s ease;cursor:' + (this.lightboxDragging ? 'grabbing' : 'grab')
+      )
+    },
+
+    lightboxZoomIn() { this.lightboxZoom = Math.min(this.lightboxZoom + 0.25, 5); this._updateSvgTransform() },
+    lightboxZoomOut() { this.lightboxZoom = Math.max(this.lightboxZoom - 0.25, 0.25); this._updateSvgTransform() },
+    lightboxReset() { this.lightboxZoom = 1; this.lightboxPanX = 0; this.lightboxPanY = 0; this._updateSvgTransform() },
 
     lightboxWheel(e) {
       const delta = e.deltaY > 0 ? -0.15 : 0.15
       this.lightboxZoom = Math.max(0.25, Math.min(5, this.lightboxZoom + delta))
+      this._updateSvgTransform()
     },
 
     lightboxDragStart(e) {
@@ -722,6 +761,7 @@ export default {
       if (!this.lightboxDragging) return
       this.lightboxPanX = this.lightboxPanStartX + (e.clientX - this.lightboxDragStartX)
       this.lightboxPanY = this.lightboxPanStartY + (e.clientY - this.lightboxDragStartY)
+      this._updateSvgTransform()
     },
     lightboxDragEnd() { this.lightboxDragging = false },
 
@@ -827,12 +867,12 @@ export default {
             const svgEl = el.querySelector('svg')
             if (svgEl) {
               const s = new XMLSerializer().serializeToString(svgEl)
-              images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+              images['mermaid-' + idx] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(s)
             } else {
               const code = el.textContent.trim()
               const { svg } = await mermaid.render('mermaid-export-' + idx, code)
               el.innerHTML = svg
-              images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)))
+              images['mermaid-' + idx] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg)
             }
           } catch (e) {
             console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
@@ -1360,8 +1400,9 @@ header h1 {
 }
 
 .chart-box canvas {
+  display: block;
   width: 100%;
-  max-height: 300px;
+  max-height: 500px;
 }
 
 .gpx-charts {
@@ -1684,6 +1725,7 @@ header h1 {
   max-height: 150px;
   height: auto;
 }
+.mermaid svg * { pointer-events: bounding-box; }
 
 .mode-selector {
   display: flex;
@@ -1791,10 +1833,14 @@ header h1 {
   max-width: 90vw;
   max-height: 80vh;
 }
+.lightbox-img-wrap svg {
+  max-width: 100%;
+  max-height: 100%;
+  pointer-events: auto;
+}
 .expand-hint {
   font-size: 11px;
   opacity: 0.6;
-  cursor: pointer;
 }
 .chart-box.small { cursor: pointer; }
 .chart-box.small canvas { pointer-events: none; }
