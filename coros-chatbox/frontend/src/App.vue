@@ -693,16 +693,25 @@ export default {
         }
       })
 
-      document.querySelectorAll('.mermaid svg').forEach((svg, idx) => {
-        try {
-          const s = new XMLSerializer().serializeToString(svg)
-          images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
-        } catch (e) {
-          console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
+      const mermaidDivs = document.querySelectorAll('.mermaid')
+      if (mermaidDivs.length > 0) {
+        const svgs = document.querySelectorAll('.mermaid svg')
+        if (svgs.length > 0) {
+          svgs.forEach((svg, idx) => {
+            try {
+              const s = new XMLSerializer().serializeToString(svg)
+              images['mermaid-' + idx] = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(s)))
+            } catch (e) {
+              console.warn('captureChartImages: mermaid ' + idx + ' failed', e)
+            }
+          })
+        } else {
+          console.warn('captureChartImages: found ' + mermaidDivs.length + ' .mermaid divs but no svg children - mermaid may not have rendered yet')
         }
-      })
+      }
 
       images._byFileId = byFileId
+      images._mermaidCount = Object.keys(images).filter(k => k.startsWith('mermaid-')).length
       return images
     },
 
@@ -724,18 +733,7 @@ export default {
       const c = themeColors[theme] || themeColors.dark
 
       if (this.exportIncludeCharts) {
-        const hadCorosCharts = this.showCorosCharts
-        if (!this.showCorosCharts && msgs.some(m => m.role === 'assistant' && m.content && m.content.includes('```mermaid'))) {
-          this.showCorosCharts = true
-          if (this.monthlyVolume.length === 0) {
-            try {
-              const res = await fetch('http://localhost:8000/api/chart/coros-summary')
-              const data = await res.json()
-              this.monthlyVolume = data.monthly_volume || []
-              this.heartRateData = data.heart_rate || []
-              this.trainingLoadData = data.training_load || []
-            } catch (_) {}
-          }
+        if (this.showCorosCharts) {
           this.$nextTick(() => this.renderCorosCharts())
         }
         await this.$nextTick()
@@ -744,6 +742,7 @@ export default {
 
       const charts = this.exportIncludeCharts ? await this.captureChartImages() : {}
       const byFileId = (charts && charts._byFileId) || {}
+      if (charts) charts._mermaidNextIdx = 0
 
       this._exportAccent = c.accent
       let msgHtml = ''
@@ -784,17 +783,8 @@ export default {
           </div>`
       })
 
-      delete charts._byFileId
-      let chartSections = ''
-      for (const key in charts) {
-        if (key.startsWith('mermaid-')) {
-          chartSections += `<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">\n`
-          chartSections += `<img src="${charts[key]}" style="max-width:100%" />\n`
-          chartSections += `</div>\n`
-        }
-      }
-
-      const html = `<!DOCTYPE html>
+      try {
+        const html = `<!DOCTYPE html>
 <html lang="zh-HK">
 <head>
 <meta charset="UTF-8">
@@ -805,8 +795,6 @@ export default {
 body { font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif; background:${c.bg}; color:${c.text}; padding:24px; }
 h1 { font-size:22px; background:linear-gradient(135deg,${c.accent},#ef4444); -webkit-background-clip:text; -webkit-text-fill-color:transparent; margin-bottom:4px; }
 .sub { color:${c.muted}; font-size:13px; margin-bottom:24px; padding-bottom:12px; border-bottom:1px solid ${c.border}; }
-.charts-section { margin: 16px 0; }
-.charts-section h3 { color:${c.accent}; font-size:14px; margin-bottom:8px; }
 @media print { body { padding:16px; } }
 </style>
 </head>
@@ -814,24 +802,27 @@ h1 { font-size:22px; background:linear-gradient(135deg,${c.accent},#ef4444); -we
 <h1>${this.exportTitle}</h1>
 <div class="sub">Generated ${now} | ${sorted.length} messages</div>
 ${msgHtml}
-${chartSections ? '<div class="charts-section"><h3>📊 Mermaid Charts</h3>' + chartSections + '</div>' : ''}
 </body>
 </html>`
 
-      if (this.exportFormat === 'html') {
-        const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement('a')
-        a.href = url
-        a.download = 'coros-report.html'
-        a.click()
-        URL.revokeObjectURL(url)
-      } else {
-        const w = window.open('', '_blank')
-        w.document.write(html)
-        w.document.close()
-        w.focus()
-        setTimeout(() => { w.print() }, 500)
+        if (this.exportFormat === 'html') {
+          const blob = new Blob([html], { type: 'text/html;charset=utf-8' })
+          const url = URL.createObjectURL(blob)
+          const a = document.createElement('a')
+          a.href = url
+          a.download = 'coros-report.html'
+          a.click()
+          URL.revokeObjectURL(url)
+        } else {
+          const w = window.open('', '_blank')
+          w.document.write(html)
+          w.document.close()
+          w.focus()
+          setTimeout(() => { w.print() }, 500)
+        }
+      } catch (e) {
+        console.error('Export failed:', e)
+        alert('Export failed: ' + e.message)
       }
 
       this.showExportDialog = false
@@ -841,24 +832,26 @@ ${chartSections ? '<div class="charts-section"><h3>📊 Mermaid Charts</h3>' + c
       if (!text) return ''
       const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 
-      const mermaidKeys = Object.keys(charts).filter(k => k.startsWith('mermaid-'))
+      const totalMermaid = charts._mermaidCount || 0
+      let mermaidIdx = charts._mermaidNextIdx || 0
+
       const mermaidBlocks = []
-      let mermaidIdx = 0
+      const tableBlocks = []
+
       let html = text.replace(/```mermaid\n?([\s\S]*?)```/g, (match, code) => {
-        const imgSrc = mermaidKeys[mermaidIdx] ? charts[mermaidKeys[mermaidIdx]] : null
-        mermaidIdx++
         const idx = mermaidBlocks.length
-        if (imgSrc) {
+        if (mermaidIdx < totalMermaid) {
           mermaidBlocks.push(`<div style="background:#1a1a2e;border-radius:10px;padding:12px;text-align:center;margin:8px 0">
-            <img src="${imgSrc}" style="max-width:100%" />
+            <img src="${charts['mermaid-' + mermaidIdx]}" style="max-width:100%" />
           </div>`)
+          mermaidIdx++
         } else {
           mermaidBlocks.push(`<pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;color:#e4e4e7;overflow-x:auto">${esc(code)}</pre>`)
         }
         return `~~~MERMAID${idx}~~~`
       })
+      charts._mermaidNextIdx = mermaidIdx
 
-      const tableBlocks = []
       html = html.replace(/^\|.+\n\|[-:| ]+\|\n(?:\|.+\n?)+/gm, (match) => {
         const idx = tableBlocks.length
         const lines = match.trimEnd().split('\n')
@@ -904,7 +897,7 @@ ${chartSections ? '<div class="charts-section"><h3>📊 Mermaid Charts</h3>' + c
         html = html.replace(`~~~MERMAID${i}~~~`, block)
       })
 
-      html = '<p>' + html + '</p>'
+      html = '<div>' + html + '</div>'
       return html
     },
 
