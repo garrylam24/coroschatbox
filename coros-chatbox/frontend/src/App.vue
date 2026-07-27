@@ -242,6 +242,10 @@ export default {
     const sid = localStorage.getItem('coros_session_id')
     if (sid) this.sessionId = sid
     this.fetchLastUpdated()
+    this.$nextTick(() => {
+      this.renderMermaidDiagrams()
+      this.reloadFileCharts()
+    })
   },
   watch: {
     messages: {
@@ -341,6 +345,15 @@ export default {
       } catch (e) {
         console.warn('loadFileCharts error:', e)
       }
+    },
+
+    reloadFileCharts() {
+      this.messages.forEach((msg, idx) => {
+        if (msg.file && msg.file.chartReady && msg.file.file_id && (msg.file.type === 'gpx' || msg.file.type === 'tcx' || msg.file.type === 'fit')) {
+          const ft = msg.file.type || 'gpx'
+          this.loadFileCharts(ft, msg.file.file_id, idx)
+        }
+      })
     },
 
     renderFileCharts(fileId, data, hasEle, hasHr, hasCad) {
