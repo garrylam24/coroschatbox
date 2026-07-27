@@ -1034,14 +1034,17 @@ ${msgHtml}
         const elements = document.querySelectorAll('.mermaid')
         if (elements.length === 0) return
         const esc = s => s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
-        elements.forEach(el => {
+        elements.forEach(async (el) => {
           if (el.dataset.rendered) return
           el.dataset.rendered = '1'
           const code = el.textContent.trim()
           if (!code) return
-          mermaid.run({ nodes: [el] }).catch(() => {
+          try {
+            const { svg } = await mermaid.render('m-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6), code)
+            el.innerHTML = svg
+          } catch (e) {
             el.innerHTML = `<div style="color:#a1a1aa;font-size:12px;margin-bottom:4px">⚠️ Mermaid render error — chart code:</div><pre style="background:#0f0f13;border:1px solid #27272a;border-radius:8px;padding:12px;font-size:12px;line-height:1.5;color:#e4e4e7;overflow-x:auto;white-space:pre-wrap">${esc(code)}</pre>`
-          })
+          }
         })
       })
     }
